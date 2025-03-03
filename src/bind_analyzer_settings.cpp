@@ -19,7 +19,7 @@ public:
     // Default constructor
     using AnalyzerSettings::AnalyzerSettings;
 
-    // Override pure virtual methods with trampolines to Python
+    // Pure virtual methods with trampolines to Python
     bool SetSettingsFromInterfaces() override {
         PYBIND11_OVERRIDE_PURE(
             bool,                      // Return type
@@ -45,7 +45,7 @@ public:
         );
     }
 
-    // Override non-pure virtual methods
+    // Virtual methods with default implementations
     const char* GetSettingBrief() override {
         PYBIND11_OVERRIDE(
             const char*,         // Return type
@@ -56,6 +56,19 @@ public:
 };
 
 void init_analyzer_settings(py::module_ &m) {
+    // Bind the AnalyzerInterfaceTypeId enum
+    py::enum_<AnalyzerInterfaceTypeId>(m, "AnalyzerInterfaceTypeId", R"pbdoc(
+        Enum defining the types of analyzer setting interfaces.
+        
+        Used internally to identify the specific type of a setting interface.
+    )pbdoc")
+        .value("INTERFACE_BASE", INTERFACE_BASE, R"pbdoc(Base interface type.)pbdoc")
+        .value("INTERFACE_CHANNEL", INTERFACE_CHANNEL, R"pbdoc(Channel selection interface.)pbdoc")
+        .value("INTERFACE_NUMBER_LIST", INTERFACE_NUMBER_LIST, R"pbdoc(Dropdown with numeric values.)pbdoc")
+        .value("INTERFACE_INTEGER", INTERFACE_INTEGER, R"pbdoc(Integer input interface.)pbdoc")
+        .value("INTERFACE_TEXT", INTERFACE_TEXT, R"pbdoc(Text input interface.)pbdoc")
+        .value("INTERFACE_BOOL", INTERFACE_BOOL, R"pbdoc(Boolean checkbox interface.)pbdoc");
+
     // AnalyzerSettingInterface - Base class for all setting interfaces
     py::class_<AnalyzerSettingInterface> setting_interface(m, "AnalyzerSettingInterface", R"pbdoc(
         Base class for all analyzer setting interfaces.
@@ -64,19 +77,28 @@ void init_analyzer_settings(py::module_ &m) {
         This is the base class that all specific interface types inherit from.
     )pbdoc");
 
+    // Virtual methods
+    setting_interface.def("get_type", &AnalyzerSettingInterface::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: The type identifier
+    )pbdoc");
+
+    // Utility methods
     setting_interface.def("get_tool_tip", &AnalyzerSettingInterface::GetToolTip, R"pbdoc(
         Get the tooltip text for this setting.
         
         Returns:
             str: Tooltip text
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     setting_interface.def("get_title", &AnalyzerSettingInterface::GetTitle, R"pbdoc(
         Get the title/label for this setting.
         
         Returns:
             str: Title text
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     setting_interface.def("is_disabled", &AnalyzerSettingInterface::IsDisabled, R"pbdoc(
         Check if this setting is disabled.
@@ -89,8 +111,8 @@ void init_analyzer_settings(py::module_ &m) {
         Set the title and tooltip for this setting.
         
         Args:
-            title: Title/label text
-            tooltip: Tooltip text
+            title (str): Title/label text
+            tooltip (str): Tooltip text
     )pbdoc", py::arg("title"), py::arg("tooltip"));
 
     // AnalyzerSettingInterfaceChannel - Channel selection setting
@@ -101,8 +123,22 @@ void init_analyzer_settings(py::module_ &m) {
         This interface allows the user to select a channel from the available channels.
     )pbdoc");
 
-    channel_interface.def(py::init<>(), "Default constructor");
+    // Constructor
+    channel_interface.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new channel interface with default settings.
+    )pbdoc");
 
+    // Virtual methods
+    channel_interface.def("get_type", &AnalyzerSettingInterfaceChannel::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: Always returns INTERFACE_CHANNEL
+    )pbdoc");
+
+    // Utility methods
     channel_interface.def("get_channel", &AnalyzerSettingInterfaceChannel::GetChannel, R"pbdoc(
         Get the currently selected channel.
         
@@ -114,7 +150,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set the selected channel.
         
         Args:
-            channel: The channel to select
+            channel (Channel): The channel to select
     )pbdoc", py::arg("channel"));
 
     channel_interface.def("get_selection_of_none_is_allowed", 
@@ -130,7 +166,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set whether selecting "None" is allowed for this channel setting.
         
         Args:
-            is_allowed: True to allow "None" selection
+            is_allowed (bool): True to allow "None" selection
     )pbdoc", py::arg("is_allowed"));
 
     // AnalyzerSettingInterfaceNumberList - Dropdown list of numeric values
@@ -142,8 +178,22 @@ void init_analyzer_settings(py::module_ &m) {
         each with an associated numeric value (e.g., baud rates, bit counts, etc.)
     )pbdoc");
 
-    number_list_interface.def(py::init<>(), "Default constructor");
+    // Constructor
+    number_list_interface.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new number list interface with an empty list of options.
+    )pbdoc");
 
+    // Virtual methods
+    number_list_interface.def("get_type", &AnalyzerSettingInterfaceNumberList::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: Always returns INTERFACE_NUMBER_LIST
+    )pbdoc");
+
+    // Utility methods
     number_list_interface.def("get_number", &AnalyzerSettingInterfaceNumberList::GetNumber, R"pbdoc(
         Get the currently selected numeric value.
         
@@ -155,7 +205,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set the selected numeric value.
         
         Args:
-            number: The value to select
+            number (float): The value to select
     )pbdoc", py::arg("number"));
 
     number_list_interface.def("get_listbox_numbers_count", 
@@ -171,7 +221,7 @@ void init_analyzer_settings(py::module_ &m) {
         Get the numeric value for an item at the specified index.
         
         Args:
-            index: Index of the item
+            index (int): Index of the item (0-based)
             
         Returns:
             float: Numeric value of the item
@@ -190,19 +240,38 @@ void init_analyzer_settings(py::module_ &m) {
         Get the string label for an item at the specified index.
         
         Args:
-            index: Index of the item
+            index (int): Index of the item (0-based)
             
         Returns:
             str: String label of the item
-    )pbdoc", py::arg("index"));
+    )pbdoc", py::arg("index"), py::return_value_policy::reference);
+
+    number_list_interface.def("get_listbox_tooltips_count", 
+                              &AnalyzerSettingInterfaceNumberList::GetListboxTooltipsCount, R"pbdoc(
+        Get the number of tooltips in the list.
+        
+        Returns:
+            int: Number of tooltips
+    )pbdoc");
+
+    number_list_interface.def("get_listbox_tooltip", 
+                              &AnalyzerSettingInterfaceNumberList::GetListboxTooltip, R"pbdoc(
+        Get the tooltip for an item at the specified index.
+        
+        Args:
+            index (int): Index of the item (0-based)
+            
+        Returns:
+            str: Tooltip text for the item
+    )pbdoc", py::arg("index"), py::return_value_policy::reference);
 
     number_list_interface.def("add_number", &AnalyzerSettingInterfaceNumberList::AddNumber, R"pbdoc(
         Add a numeric option to the list.
         
         Args:
-            number: Numeric value
-            str: Display string
-            tooltip: Tooltip text for this option
+            number (float): Numeric value
+            str (str): Display string
+            tooltip (str): Tooltip text for this option
     )pbdoc", py::arg("number"), py::arg("str"), py::arg("tooltip"));
 
     number_list_interface.def("clear_numbers", &AnalyzerSettingInterfaceNumberList::ClearNumbers, R"pbdoc(
@@ -217,8 +286,22 @@ void init_analyzer_settings(py::module_ &m) {
         This interface allows the user to enter an integer value within a specified range.
     )pbdoc");
 
-    integer_interface.def(py::init<>(), "Default constructor");
+    // Constructor
+    integer_interface.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new integer interface with default range.
+    )pbdoc");
 
+    // Virtual methods
+    integer_interface.def("get_type", &AnalyzerSettingInterfaceInteger::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: Always returns INTERFACE_INTEGER
+    )pbdoc");
+
+    // Utility methods
     integer_interface.def("get_integer", &AnalyzerSettingInterfaceInteger::GetInteger, R"pbdoc(
         Get the current integer value.
         
@@ -230,7 +313,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set the integer value.
         
         Args:
-            integer: Value to set
+            integer (int): Value to set
     )pbdoc", py::arg("integer"));
 
     integer_interface.def("get_max", &AnalyzerSettingInterfaceInteger::GetMax, R"pbdoc(
@@ -251,14 +334,14 @@ void init_analyzer_settings(py::module_ &m) {
         Set the maximum allowed value.
         
         Args:
-            max: Maximum value
+            max (int): Maximum value
     )pbdoc", py::arg("max"));
 
     integer_interface.def("set_min", &AnalyzerSettingInterfaceInteger::SetMin, R"pbdoc(
         Set the minimum allowed value.
         
         Args:
-            min: Minimum value
+            min (int): Minimum value
     )pbdoc", py::arg("min"));
 
     // AnalyzerSettingInterfaceText - Text input setting
@@ -270,29 +353,43 @@ void init_analyzer_settings(py::module_ &m) {
         such as naming, entering file paths, etc.
     )pbdoc");
 
-    text_interface.def(py::init<>(), "Default constructor");
+    // Constructor
+    text_interface.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new text interface with empty text.
+    )pbdoc");
 
+    // Virtual methods
+    text_interface.def("get_type", &AnalyzerSettingInterfaceText::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: Always returns INTERFACE_TEXT
+    )pbdoc");
+
+    // Utility methods
     text_interface.def("get_text", &AnalyzerSettingInterfaceText::GetText, R"pbdoc(
         Get the current text value.
         
         Returns:
             str: Current text
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     text_interface.def("set_text", &AnalyzerSettingInterfaceText::SetText, R"pbdoc(
         Set the text value.
         
         Args:
-            text: Text to set
+            text (str): Text to set
     )pbdoc", py::arg("text"));
 
     // Enum for TextType
     py::enum_<AnalyzerSettingInterfaceText::TextType>(text_interface, "TextType", R"pbdoc(
         Types of text input fields.
     )pbdoc")
-        .value("NormalText", AnalyzerSettingInterfaceText::NormalText, "Regular text input")
-        .value("FilePath", AnalyzerSettingInterfaceText::FilePath, "File path input with browse button")
-        .value("FolderPath", AnalyzerSettingInterfaceText::FolderPath, "Folder path input with browse button");
+        .value("NormalText", AnalyzerSettingInterfaceText::NormalText, R"pbdoc(Regular text input)pbdoc")
+        .value("FilePath", AnalyzerSettingInterfaceText::FilePath, R"pbdoc(File path input with browse button)pbdoc")
+        .value("FolderPath", AnalyzerSettingInterfaceText::FolderPath, R"pbdoc(Folder path input with browse button)pbdoc");
 
     text_interface.def("get_text_type", &AnalyzerSettingInterfaceText::GetTextType, R"pbdoc(
         Get the type of text input.
@@ -305,7 +402,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set the type of text input.
         
         Args:
-            text_type: The text field type
+            text_type (TextType): The text field type
     )pbdoc", py::arg("text_type"));
 
     // AnalyzerSettingInterfaceBool - Boolean (checkbox) setting
@@ -316,8 +413,22 @@ void init_analyzer_settings(py::module_ &m) {
         This interface presents a checkbox with a label for toggling boolean options.
     )pbdoc");
 
-    bool_interface.def(py::init<>(), "Default constructor");
+    // Constructor
+    bool_interface.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new boolean interface with default value of false.
+    )pbdoc");
 
+    // Virtual methods
+    bool_interface.def("get_type", &AnalyzerSettingInterfaceBool::GetType, R"pbdoc(
+        Get the type of this setting interface.
+        
+        Returns:
+            AnalyzerInterfaceTypeId: Always returns INTERFACE_BOOL
+    )pbdoc");
+
+    // Utility methods
     bool_interface.def("get_value", &AnalyzerSettingInterfaceBool::GetValue, R"pbdoc(
         Get the current boolean value.
         
@@ -329,7 +440,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set the boolean value.
         
         Args:
-            value: Value to set
+            value (bool): Value to set
     )pbdoc", py::arg("value"));
 
     bool_interface.def("get_check_box_text", &AnalyzerSettingInterfaceBool::GetCheckBoxText, R"pbdoc(
@@ -337,13 +448,13 @@ void init_analyzer_settings(py::module_ &m) {
         
         Returns:
             str: Checkbox text
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     bool_interface.def("set_check_box_text", &AnalyzerSettingInterfaceBool::SetCheckBoxText, R"pbdoc(
         Set the text displayed next to the checkbox.
         
         Args:
-            text: Checkbox text
+            text (str): Checkbox text
     )pbdoc", py::arg("text"));
 
     // AnalyzerSettings - Base class for analyzer settings
@@ -356,7 +467,12 @@ void init_analyzer_settings(py::module_ &m) {
         Must be subclassed to implement specific analyzer settings.
     )pbdoc");
 
-    analyzer_settings.def(py::init<>(), "Default constructor");
+    // Constructor
+    analyzer_settings.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates a new analyzer settings object with no channels or interfaces.
+    )pbdoc");
 
     // Pure virtual methods
     analyzer_settings.def("set_settings_from_interfaces", &AnalyzerSettings::SetSettingsFromInterfaces, R"pbdoc(
@@ -374,7 +490,7 @@ void init_analyzer_settings(py::module_ &m) {
         Load settings from a string.
         
         Args:
-            settings: String containing serialized settings
+            settings (str): String containing serialized settings
             
         Must be implemented by derived classes.
     )pbdoc", py::arg("settings"));
@@ -386,7 +502,7 @@ void init_analyzer_settings(py::module_ &m) {
             str: Serialized settings string
             
         Must be implemented by derived classes.
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     // Virtual methods with default implementations
     analyzer_settings.def("get_setting_brief", &AnalyzerSettings::GetSettingBrief, R"pbdoc(
@@ -394,7 +510,7 @@ void init_analyzer_settings(py::module_ &m) {
         
         Returns:
             str: Brief description string
-    )pbdoc");
+    )pbdoc", py::return_value_policy::reference);
 
     // Protected methods exposed for use in derived classes
     analyzer_settings.def("clear_channels", &AnalyzerSettings::ClearChannels, R"pbdoc(
@@ -407,53 +523,167 @@ void init_analyzer_settings(py::module_ &m) {
         Add a channel to the analyzer.
         
         Args:
-            channel: Channel to add
-            channel_label: Label for the channel
-            is_used: Whether the channel is used by the analyzer
+            channel (Channel): Channel to add
+            channel_label (str): Label for the channel
+            is_used (bool): Whether the channel is used by the analyzer
     )pbdoc", py::arg("channel"), py::arg("channel_label"), py::arg("is_used"));
 
     analyzer_settings.def("set_error_text", &AnalyzerSettings::SetErrorText, R"pbdoc(
         Set error text for invalid settings.
         
         Args:
-            error_text: Error message to display
+            error_text (str): Error message to display
     )pbdoc", py::arg("error_text"));
 
     analyzer_settings.def("add_interface", &AnalyzerSettings::AddInterface, R"pbdoc(
         Add a setting interface.
         
         Args:
-            analyzer_setting_interface: Interface to add
+            analyzer_setting_interface (AnalyzerSettingInterface): Interface to add
+            
+        Note:
+            The caller must maintain ownership of the interface object.
     )pbdoc", py::arg("analyzer_setting_interface"));
 
     analyzer_settings.def("add_export_option", &AnalyzerSettings::AddExportOption, R"pbdoc(
         Add an export option to the analyzer.
         
         Args:
-            user_id: User-defined ID for the export option
-            menu_text: Text to display in the export menu
+            user_id (int): User-defined ID for the export option
+            menu_text (str): Text to display in the export menu
     )pbdoc", py::arg("user_id"), py::arg("menu_text"));
 
     analyzer_settings.def("add_export_extension", &AnalyzerSettings::AddExportExtension, R"pbdoc(
         Add a file extension for an export option.
         
         Args:
-            user_id: User-defined ID for the export option
-            extension_description: Description of the file type
-            extension: File extension (e.g., "csv")
+            user_id (int): User-defined ID for the export option
+            extension_description (str): Description of the file type
+            extension (str): File extension (e.g., "csv")
     )pbdoc", py::arg("user_id"), py::arg("extension_description"), py::arg("extension"));
 
     analyzer_settings.def("set_return_string", &AnalyzerSettings::SetReturnString, R"pbdoc(
         Set the string to return from SaveSettings.
         
         Args:
-            str: Settings string
+            str (str): Settings string
             
         Returns:
             str: The same string that was passed in
-    )pbdoc", py::arg("str"));
+            
+        Note:
+            This method should be used in the SaveSettings implementation.
+    )pbdoc", py::arg("str"), py::return_value_policy::reference);
 
     // Public utility methods
+    analyzer_settings.def("get_settings_interfaces_count", &AnalyzerSettings::GetSettingsInterfacesCount, R"pbdoc(
+        Get the number of setting interfaces.
+        
+        Returns:
+            int: Number of interfaces
+    )pbdoc");
+
+    analyzer_settings.def("get_settings_interface", 
+                          &AnalyzerSettings::GetSettingsInterface, R"pbdoc(
+        Get a setting interface by index.
+        
+        Args:
+            index (int): Index of the interface (0-based)
+            
+        Returns:
+            AnalyzerSettingInterface: The interface at the specified index
+            
+        Note:
+            The returned interface is owned by the settings object.
+    )pbdoc", py::arg("index"), py::return_value_policy::reference);
+
+    analyzer_settings.def("get_file_extension_count", &AnalyzerSettings::GetFileExtensionCount, R"pbdoc(
+        Get the number of file extensions for an export option.
+        
+        Args:
+            index_id (int): Export option ID
+            
+        Returns:
+            int: Number of file extensions
+    )pbdoc", py::arg("index_id"));
+
+    analyzer_settings.def("get_file_extension", [](AnalyzerSettings& self, U32 index_id, U32 extension_id) {
+        const char* extension_description = nullptr;
+        const char* extension = nullptr;
+        self.GetFileExtension(index_id, extension_id, &extension_description, &extension);
+        return py::make_tuple(
+            std::string(extension_description ? extension_description : ""),
+            std::string(extension ? extension : "")
+        );
+    }, R"pbdoc(
+        Get file extension information for an export option.
+        
+        Args:
+            index_id (int): Export option ID
+            extension_id (int): Extension index
+            
+        Returns:
+            tuple: (extension_description, extension)
+    )pbdoc", py::arg("index_id"), py::arg("extension_id"));
+
+    analyzer_settings.def("get_channels_count", &AnalyzerSettings::GetChannelsCount, R"pbdoc(
+        Get the number of channels used by the analyzer.
+        
+        Returns:
+            int: Number of channels
+    )pbdoc");
+
+    analyzer_settings.def("get_channel", [](AnalyzerSettings& self, U32 index) {
+        const char* channel_label = nullptr;
+        bool channel_is_used = false;
+        Channel channel = self.GetChannel(index, &channel_label, &channel_is_used);
+        return py::make_tuple(
+            channel,
+            std::string(channel_label ? channel_label : ""),
+            channel_is_used
+        );
+    }, R"pbdoc(
+        Get information about a channel by index.
+        
+        Args:
+            index (int): Channel index (0-based)
+            
+        Returns:
+            tuple: (Channel, label, is_used)
+    )pbdoc", py::arg("index"));
+
+    analyzer_settings.def("get_export_options_count", &AnalyzerSettings::GetExportOptionsCount, R"pbdoc(
+        Get the number of export options.
+        
+        Returns:
+            int: Number of export options
+    )pbdoc");
+
+    analyzer_settings.def("get_export_option", [](AnalyzerSettings& self, U32 index) {
+        U32 user_id = 0;
+        const char* menu_text = nullptr;
+        self.GetExportOption(index, &user_id, &menu_text);
+        return py::make_tuple(
+            user_id,
+            std::string(menu_text ? menu_text : "")
+        );
+    }, R"pbdoc(
+        Get information about an export option by index.
+        
+        Args:
+            index (int): Export option index (0-based)
+            
+        Returns:
+            tuple: (user_id, menu_text)
+    )pbdoc", py::arg("index"));
+
+    analyzer_settings.def("get_save_error_message", &AnalyzerSettings::GetSaveErrorMessage, R"pbdoc(
+        Get the error message from the last save operation.
+        
+        Returns:
+            str: Error message or empty string if no error
+    )pbdoc", py::return_value_policy::reference);
+
     analyzer_settings.def("get_use_system_display_base", &AnalyzerSettings::GetUseSystemDisplayBase, R"pbdoc(
         Check if the analyzer uses the system display base.
         
@@ -465,7 +695,7 @@ void init_analyzer_settings(py::module_ &m) {
         Set whether to use the system display base.
         
         Args:
-            use_system_display_base: True to use system display base
+            use_system_display_base (bool): True to use system display base
     )pbdoc", py::arg("use_system_display_base"));
 
     analyzer_settings.def("get_analyzer_display_base", &AnalyzerSettings::GetAnalyzerDisplayBase, R"pbdoc(
@@ -479,6 +709,6 @@ void init_analyzer_settings(py::module_ &m) {
         Set the display base used by the analyzer.
         
         Args:
-            analyzer_display_base: Display base to use
+            analyzer_display_base (DisplayBase): Display base to use
     )pbdoc", py::arg("analyzer_display_base"));
 }

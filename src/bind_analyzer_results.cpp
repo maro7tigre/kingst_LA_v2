@@ -1,6 +1,7 @@
 // bind_analyzer_results.cpp
 //
 // Python bindings for the AnalyzerResults class and Frame class
+// Following the Pybind11 Binding Style Guide for Kingst LA
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -18,7 +19,7 @@ public:
     // Default constructor
     using AnalyzerResults::AnalyzerResults;
 
-    // Override pure virtual methods with trampolines to Python
+    // =============== Pure Virtual Methods ===============
     void GenerateBubbleText(U64 frame_index, Channel &channel, DisplayBase display_base) override {
         PYBIND11_OVERRIDE_PURE(
             void,               // Return type
@@ -66,7 +67,12 @@ public:
 };
 
 void init_analyzer_results(py::module_ &m) {
-    // Frame class
+    // =============== Module-level constants ===============
+    m.attr("DISPLAY_AS_ERROR_FLAG") = DISPLAY_AS_ERROR_FLAG;
+    m.attr("DISPLAY_AS_WARNING_FLAG") = DISPLAY_AS_WARNING_FLAG;
+    m.attr("INVALID_RESULT_INDEX") = INVALID_RESULT_INDEX;
+    
+    // =============== Frame class ===============
     py::class_<Frame> frame(m, "Frame", R"pbdoc(
         Represents a single protocol data frame.
         
@@ -75,66 +81,91 @@ void init_analyzer_results(py::module_ &m) {
         the specific analyzer and frame type.
     )pbdoc");
 
-    frame.def(py::init<>(), "Default constructor");
-    frame.def(py::init<const Frame &>(), "Copy constructor", py::arg("frame"));
+    frame.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates an empty frame with all fields initialized to zero.
+    )pbdoc");
+    
+    frame.def(py::init<const Frame &>(), R"pbdoc(
+        Copy constructor.
+        
+        Creates a new frame that is a copy of an existing frame.
+        
+        Args:
+            frame: Source frame to copy from
+    )pbdoc", py::arg("frame"));
 
     frame.def_readwrite("starting_sample", &Frame::mStartingSampleInclusive, R"pbdoc(
         The first sample index (inclusive) of this frame.
+        
+        Type: S64 (signed 64-bit integer)
     )pbdoc");
 
     frame.def_readwrite("ending_sample", &Frame::mEndingSampleInclusive, R"pbdoc(
         The last sample index (inclusive) of this frame.
+        
+        Type: S64 (signed 64-bit integer)
     )pbdoc");
 
     frame.def_readwrite("data1", &Frame::mData1, R"pbdoc(
         Primary data value. Meaning depends on the analyzer and frame type.
+        
+        Type: U64 (unsigned 64-bit integer)
     )pbdoc");
 
     frame.def_readwrite("data2", &Frame::mData2, R"pbdoc(
         Secondary data value. Meaning depends on the analyzer and frame type.
+        
+        Type: U64 (unsigned 64-bit integer)
     )pbdoc");
 
     frame.def_readwrite("type", &Frame::mType, R"pbdoc(
         Frame type identifier. Meaning depends on the specific analyzer.
+        
+        Type: U8 (unsigned 8-bit integer)
     )pbdoc");
 
     frame.def_readwrite("flags", &Frame::mFlags, R"pbdoc(
         Flags for this frame. Can include error/warning flags.
+        
+        Common flags:
+        - DISPLAY_AS_ERROR_FLAG (0x80): Display this frame as an error
+        - DISPLAY_AS_WARNING_FLAG (0x40): Display this frame as a warning
+        
+        Type: U8 (unsigned 8-bit integer)
     )pbdoc");
 
     frame.def("has_flag", &Frame::HasFlag, R"pbdoc(
         Check if this frame has a specific flag set.
         
         Args:
-            flag: Flag to check
+            flag (U8): Flag to check
             
         Returns:
-            bool: True if the flag is set
+            bool: True if the flag is set, False otherwise
     )pbdoc", py::arg("flag"));
 
-    // Define MarkerType enum
+    // =============== MarkerType enum ===============
     py::enum_<AnalyzerResults::MarkerType>(m, "MarkerType", R"pbdoc(
         Types of markers that can be displayed on channels.
+        
+        Markers are visual indicators shown on the channel waveforms.
     )pbdoc")
-        .value("Dot", AnalyzerResults::Dot, "A dot marker")
-        .value("ErrorDot", AnalyzerResults::ErrorDot, "An error dot marker")
-        .value("Square", AnalyzerResults::Square, "A square marker")
-        .value("ErrorSquare", AnalyzerResults::ErrorSquare, "An error square marker")
-        .value("UpArrow", AnalyzerResults::UpArrow, "An up arrow marker")
-        .value("DownArrow", AnalyzerResults::DownArrow, "A down arrow marker")
-        .value("X", AnalyzerResults::X, "An X marker")
-        .value("ErrorX", AnalyzerResults::ErrorX, "An error X marker")
-        .value("Start", AnalyzerResults::Start, "A start marker")
-        .value("Stop", AnalyzerResults::Stop, "A stop marker")
-        .value("One", AnalyzerResults::One, "A one (1) marker")
-        .value("Zero", AnalyzerResults::Zero, "A zero (0) marker");
+        .value("DOT", AnalyzerResults::Dot, R"pbdoc(A normal dot marker)pbdoc")
+        .value("ERROR_DOT", AnalyzerResults::ErrorDot, R"pbdoc(An error dot marker (red))pbdoc")
+        .value("SQUARE", AnalyzerResults::Square, R"pbdoc(A square marker)pbdoc")
+        .value("ERROR_SQUARE", AnalyzerResults::ErrorSquare, R"pbdoc(An error square marker (red))pbdoc")
+        .value("UP_ARROW", AnalyzerResults::UpArrow, R"pbdoc(An up arrow marker)pbdoc")
+        .value("DOWN_ARROW", AnalyzerResults::DownArrow, R"pbdoc(A down arrow marker)pbdoc")
+        .value("X", AnalyzerResults::X, R"pbdoc(An X marker)pbdoc")
+        .value("ERROR_X", AnalyzerResults::ErrorX, R"pbdoc(An error X marker (red))pbdoc")
+        .value("START", AnalyzerResults::Start, R"pbdoc(A start marker)pbdoc")
+        .value("STOP", AnalyzerResults::Stop, R"pbdoc(A stop marker)pbdoc")
+        .value("ONE", AnalyzerResults::One, R"pbdoc(A one (1) marker)pbdoc")
+        .value("ZERO", AnalyzerResults::Zero, R"pbdoc(A zero (0) marker)pbdoc");
 
-    // Add module-level constants
-    m.attr("DISPLAY_AS_ERROR_FLAG") = DISPLAY_AS_ERROR_FLAG;
-    m.attr("DISPLAY_AS_WARNING_FLAG") = DISPLAY_AS_WARNING_FLAG;
-    m.attr("INVALID_RESULT_INDEX") = INVALID_RESULT_INDEX;
-
-    // AnalyzerResults class
+    // =============== AnalyzerResults class ===============
     py::class_<AnalyzerResults, PyAnalyzerResults> analyzer_results(m, "AnalyzerResults", R"pbdoc(
         Base class for analyzer results.
         
@@ -142,91 +173,105 @@ void init_analyzer_results(py::module_ &m) {
         packets, transactions, and markers. It also handles generating text for
         display in the UI and exporting results to files.
         
-        Must be subclassed to implement specific analyzer results.
+        Must be subclassed to implement specific analyzer results. The subclass 
+        must implement all the pure virtual methods.
     )pbdoc");
 
-    analyzer_results.def(py::init<>(), "Default constructor");
+    analyzer_results.def(py::init<>(), R"pbdoc(
+        Default constructor.
+        
+        Creates an empty set of analyzer results.
+    )pbdoc");
 
-    // Pure virtual methods
+    // =============== 1. Pure Virtual Methods ===============
     analyzer_results.def("generate_bubble_text", &AnalyzerResults::GenerateBubbleText, R"pbdoc(
         Generate bubble text (tooltip) for a frame.
         
         This method is called when the user hovers over a frame in the UI.
-        It should set the text to display using AddResultString().
+        It should set the text to display using add_result_string().
         
         Args:
-            frame_index: Index of the frame
-            channel: Channel the frame is on
-            display_base: Display base to use (binary, decimal, hex, etc.)
+            frame_index (U64): Index of the frame
+            channel (Channel): Channel the frame is on
+            display_base (DisplayBase): Display base to use (binary, decimal, hex, etc.)
             
-        Must be implemented by derived classes.
+        MUST be implemented by derived classes.
     )pbdoc", py::arg("frame_index"), py::arg("channel"), py::arg("display_base"));
 
     analyzer_results.def("generate_export_file", &AnalyzerResults::GenerateExportFile, R"pbdoc(
         Generate an export file with the analysis results.
         
         Args:
-            file: Path to the output file
-            display_base: Display base to use (binary, decimal, hex, etc.)
-            export_type_user_id: ID of the export type selected by the user
+            file (str): Path to the output file
+            display_base (DisplayBase): Display base to use (binary, decimal, hex, etc.)
+            export_type_user_id (U32): ID of the export type selected by the user
             
-        Must be implemented by derived classes.
+        MUST be implemented by derived classes.
+        
+        Implementation Notes:
+        - Can call update_export_progress_and_check_for_cancel() to update progress
+        - Should respect the selected display_base format for numerical output
     )pbdoc", py::arg("file"), py::arg("display_base"), py::arg("export_type_user_id"));
 
     analyzer_results.def("generate_frame_tabular_text", &AnalyzerResults::GenerateFrameTabularText, R"pbdoc(
         Generate tabular text for a frame.
         
         This method is called when displaying frames in the tabular view.
-        It should set the text to display using AddTabularText().
+        It should set the text to display using add_tabular_text().
         
         Args:
-            frame_index: Index of the frame
-            display_base: Display base to use (binary, decimal, hex, etc.)
+            frame_index (U64): Index of the frame
+            display_base (DisplayBase): Display base to use (binary, decimal, hex, etc.)
             
-        Must be implemented by derived classes.
+        MUST be implemented by derived classes.
     )pbdoc", py::arg("frame_index"), py::arg("display_base"));
 
     analyzer_results.def("generate_packet_tabular_text", &AnalyzerResults::GeneratePacketTabularText, R"pbdoc(
         Generate tabular text for a packet.
         
         This method is called when displaying packets in the tabular view.
-        It should set the text to display using AddTabularText().
+        It should set the text to display using add_tabular_text().
         
         Args:
-            packet_id: ID of the packet
-            display_base: Display base to use (binary, decimal, hex, etc.)
+            packet_id (U64): ID of the packet
+            display_base (DisplayBase): Display base to use (binary, decimal, hex, etc.)
             
-        Must be implemented by derived classes.
+        MUST be implemented by derived classes.
     )pbdoc", py::arg("packet_id"), py::arg("display_base"));
 
     analyzer_results.def("generate_transaction_tabular_text", &AnalyzerResults::GenerateTransactionTabularText, R"pbdoc(
         Generate tabular text for a transaction.
         
         This method is called when displaying transactions in the tabular view.
-        It should set the text to display using AddTabularText().
+        It should set the text to display using add_tabular_text().
         
         Args:
-            transaction_id: ID of the transaction
-            display_base: Display base to use (binary, decimal, hex, etc.)
+            transaction_id (U64): ID of the transaction
+            display_base (DisplayBase): Display base to use (binary, decimal, hex, etc.)
             
-        Must be implemented by derived classes.
+        MUST be implemented by derived classes.
     )pbdoc", py::arg("transaction_id"), py::arg("display_base"));
 
-    // Methods for adding data
+    // =============== 2. Data Addition Methods ===============
     analyzer_results.def("add_marker", &AnalyzerResults::AddMarker, R"pbdoc(
         Add a marker to the results.
         
+        Markers appear as visual indicators on the waveform display.
+        
         Args:
-            sample_number: Sample number to place the marker at
-            marker_type: Type of marker to add
-            channel: Channel to place the marker on
+            sample_number (U64): Sample number to place the marker at
+            marker_type (MarkerType): Type of marker to add
+            channel (Channel): Channel to place the marker on
     )pbdoc", py::arg("sample_number"), py::arg("marker_type"), py::arg("channel"));
 
     analyzer_results.def("add_frame", &AnalyzerResults::AddFrame, R"pbdoc(
         Add a frame to the results.
         
+        Frames are the basic units of decoded data. Most analyzers
+        will continuously add frames during the analysis process.
+        
         Args:
-            frame: Frame to add
+            frame (Frame): Frame to add
             
         Returns:
             U64: Index of the added frame
@@ -235,34 +280,47 @@ void init_analyzer_results(py::module_ &m) {
     analyzer_results.def("commit_packet_and_start_new_packet", &AnalyzerResults::CommitPacketAndStartNewPacket, R"pbdoc(
         Commit the current packet and start a new one.
         
+        A packet is a group of frames that together form a logical unit.
+        Frames added after calling this function will belong to the new packet.
+        
         Returns:
             U64: ID of the committed packet
     )pbdoc");
 
     analyzer_results.def("cancel_packet_and_start_new_packet", &AnalyzerResults::CancelPacketAndStartNewPacket, R"pbdoc(
         Cancel the current packet and start a new one.
+        
+        All frames added since the last commit will be removed from any packet association.
+        Frames added after calling this function will belong to the new packet.
     )pbdoc");
 
     analyzer_results.def("add_packet_to_transaction", &AnalyzerResults::AddPacketToTransaction, R"pbdoc(
         Add a packet to a transaction.
         
+        A transaction is a group of packets that together form a logical unit.
+        
         Args:
-            transaction_id: ID of the transaction
-            packet_id: ID of the packet to add
+            transaction_id (U64): ID of the transaction
+            packet_id (U64): ID of the packet to add
     )pbdoc", py::arg("transaction_id"), py::arg("packet_id"));
 
     analyzer_results.def("add_channel_bubbles_will_appear_on", &AnalyzerResults::AddChannelBubblesWillAppearOn, R"pbdoc(
         Mark a channel as having bubble text.
         
+        This must be called for any channel that will have bubble text displayed.
+        
         Args:
-            channel: Channel that will have bubble text
+            channel (Channel): Channel that will have bubble text
     )pbdoc", py::arg("channel"));
 
     analyzer_results.def("commit_results", &AnalyzerResults::CommitResults, R"pbdoc(
         Commit the results to make them visible in the UI.
+        
+        This should be called periodically during analysis to update the UI.
+        It's particularly important for long-running analyzers to show progress.
     )pbdoc");
 
-    // Data access methods
+    // =============== 3. Data Access Methods ===============
     analyzer_results.def("get_num_frames", &AnalyzerResults::GetNumFrames, R"pbdoc(
         Get the number of frames in the results.
         
@@ -281,7 +339,7 @@ void init_analyzer_results(py::module_ &m) {
         Get a frame by index.
         
         Args:
-            frame_id: Index of the frame
+            frame_id (U64): Index of the frame
             
         Returns:
             Frame: The requested frame
@@ -291,10 +349,13 @@ void init_analyzer_results(py::module_ &m) {
         Get the packet that contains a frame.
         
         Args:
-            frame_id: Index of the frame
+            frame_id (U64): Index of the frame
             
         Returns:
             U64: ID of the packet containing the frame, or INVALID_RESULT_INDEX if not found
+            
+        Note: This uses an index-based lookup which is fast but may not always find
+        the packet if frames were added in a non-sequential order.
     )pbdoc", py::arg("frame_id"));
 
     analyzer_results.def("get_packet_containing_frame_sequential", &AnalyzerResults::GetPacketContainingFrameSequential, R"pbdoc(
@@ -303,7 +364,7 @@ void init_analyzer_results(py::module_ &m) {
         This is slower but more reliable than get_packet_containing_frame.
         
         Args:
-            frame_id: Index of the frame
+            frame_id (U64): Index of the frame
             
         Returns:
             U64: ID of the packet containing the frame, or INVALID_RESULT_INDEX if not found
@@ -317,20 +378,22 @@ void init_analyzer_results(py::module_ &m) {
         Get the range of frames contained in a packet.
         
         Args:
-            packet_id: ID of the packet
+            packet_id (U64): ID of the packet
             
         Returns:
             tuple: (first_frame_id, last_frame_id)
+                - first_frame_id (U64): Index of the first frame in the packet
+                - last_frame_id (U64): Index of the last frame in the packet
     )pbdoc", py::arg("packet_id"));
 
     analyzer_results.def("get_transaction_containing_packet", &AnalyzerResults::GetTransactionContainingPacket, R"pbdoc(
         Get the transaction that contains a packet.
         
         Args:
-            packet_id: ID of the packet
+            packet_id (U64): ID of the packet
             
         Returns:
-            U32: ID of the transaction containing the packet
+            U32: ID of the transaction containing the packet, or 0 if not found
     )pbdoc", py::arg("packet_id"));
 
     analyzer_results.def("get_packets_contained_in_transaction", [](AnalyzerResults &self, U64 transaction_id) {
@@ -347,34 +410,104 @@ void init_analyzer_results(py::module_ &m) {
         Get the packets contained in a transaction.
         
         Args:
-            transaction_id: ID of the transaction
+            transaction_id (U64): ID of the transaction
             
         Returns:
-            list: List of packet IDs
+            list: List of packet IDs (U64)
     )pbdoc", py::arg("transaction_id"));
 
-    // Text result methods
+    // =============== 4. Marker Methods ===============
+    analyzer_results.def("get_num_markers", &AnalyzerResults::GetNumMarkers, R"pbdoc(
+        Get the number of markers on a channel.
+        
+        Args:
+            channel (Channel): Channel to count markers for
+            
+        Returns:
+            U64: Number of markers
+    )pbdoc", py::arg("channel"));
+
+    analyzer_results.def("get_marker", [](AnalyzerResults &self, Channel &channel, U64 marker_index) {
+        AnalyzerResults::MarkerType marker_type;
+        U64 marker_sample;
+        self.GetMarker(channel, marker_index, &marker_type, &marker_sample);
+        return py::make_tuple(marker_type, marker_sample);
+    }, R"pbdoc(
+        Get information about a marker.
+        
+        Args:
+            channel (Channel): Channel the marker is on
+            marker_index (U64): Index of the marker
+            
+        Returns:
+            tuple: (marker_type, marker_sample)
+                - marker_type (MarkerType): Type of the marker
+                - marker_sample (U64): Sample number of the marker
+    )pbdoc", py::arg("channel"), py::arg("marker_index"));
+
+    analyzer_results.def("get_markers_in_range", [](AnalyzerResults &self, Channel &channel, 
+                                                  S64 starting_sample_inclusive, 
+                                                  S64 ending_sample_inclusive) {
+        U64 first_marker_index, last_marker_index;
+        bool result = self.GetMarkersInRange(channel, starting_sample_inclusive, 
+                                           ending_sample_inclusive, 
+                                           &first_marker_index, &last_marker_index);
+        
+        if (result) {
+            return py::make_tuple(true, first_marker_index, last_marker_index);
+        } else {
+            return py::make_tuple(false, 0, 0);
+        }
+    }, R"pbdoc(
+        Get markers within a sample range.
+        
+        Args:
+            channel (Channel): Channel to get markers for
+            starting_sample_inclusive (S64): First sample in the range
+            ending_sample_inclusive (S64): Last sample in the range
+            
+        Returns:
+            tuple: (found, first_marker_index, last_marker_index)
+                - found (bool): True if markers were found in the range
+                - first_marker_index (U64): Index of the first marker in the range
+                - last_marker_index (U64): Index of the last marker in the range
+    )pbdoc", py::arg("channel"), py::arg("starting_sample_inclusive"), py::arg("ending_sample_inclusive"));
+
+    analyzer_results.def("do_markers_appear_on_channel", &AnalyzerResults::DoMarkersAppearOnChannel, R"pbdoc(
+        Check if markers appear on a channel.
+        
+        Args:
+            channel (Channel): Channel to check
+            
+        Returns:
+            bool: True if markers appear on the channel
+    )pbdoc", py::arg("channel"));
+
+    // =============== 5. Result Text Methods ===============
     analyzer_results.def("clear_result_strings", &AnalyzerResults::ClearResultStrings, R"pbdoc(
         Clear all result strings.
+        
+        This should typically be called at the start of generate_bubble_text().
     )pbdoc");
 
     analyzer_results.def("add_result_string", [](AnalyzerResults &self, const char *str1, 
-                                                const char *str2, const char *str3,
-                                                const char *str4, const char *str5,
-                                                const char *str6) {
+                                               const char *str2, const char *str3,
+                                               const char *str4, const char *str5,
+                                               const char *str6) {
         self.AddResultString(str1, str2, str3, str4, str5, str6);
     }, R"pbdoc(
         Add a result string for display in bubble text.
         
-        Multiple strings will be concatenated.
+        Multiple strings will be concatenated. This is typically called from
+        generate_bubble_text() to set text that appears when hovering over a frame.
         
         Args:
-            str1: First string
-            str2: Second string (optional)
-            str3: Third string (optional)
-            str4: Fourth string (optional)
-            str5: Fifth string (optional)
-            str6: Sixth string (optional)
+            str1 (str): First string (required)
+            str2 (str, optional): Second string. Defaults to None.
+            str3 (str, optional): Third string. Defaults to None.
+            str4 (str, optional): Fourth string. Defaults to None.
+            str5 (str, optional): Fifth string. Defaults to None.
+            str6 (str, optional): Sixth string. Defaults to None.
     )pbdoc", 
     py::arg("str1"), 
     py::arg("str2") = nullptr, 
@@ -397,31 +530,35 @@ void init_analyzer_results(py::module_ &m) {
         Get all result strings.
         
         Returns:
-            list: List of result strings
+            list: List of result strings (str)
     )pbdoc");
 
-    // Tabular text methods
+    // =============== 6. Tabular Text Methods ===============
     analyzer_results.def("clear_tabular_text", &AnalyzerResults::ClearTabularText, R"pbdoc(
         Clear all tabular text.
+        
+        This should typically be called at the start of generate_frame_tabular_text(),
+        generate_packet_tabular_text(), or generate_transaction_tabular_text().
     )pbdoc");
 
     analyzer_results.def("add_tabular_text", [](AnalyzerResults &self, const char *str1, 
-                                               const char *str2, const char *str3,
-                                               const char *str4, const char *str5,
-                                               const char *str6) {
+                                              const char *str2, const char *str3,
+                                              const char *str4, const char *str5,
+                                              const char *str6) {
         self.AddTabularText(str1, str2, str3, str4, str5, str6);
     }, R"pbdoc(
         Add text for display in the tabular view.
         
-        Multiple strings will be concatenated.
+        Multiple strings will be concatenated. This is typically called from
+        the generate_*_tabular_text() methods.
         
         Args:
-            str1: First string
-            str2: Second string (optional)
-            str3: Third string (optional)
-            str4: Fourth string (optional)
-            str5: Fifth string (optional)
-            str6: Sixth string (optional)
+            str1 (str): First string (required)
+            str2 (str, optional): Second string. Defaults to None.
+            str3 (str, optional): Third string. Defaults to None.
+            str4 (str, optional): Fourth string. Defaults to None.
+            str5 (str, optional): Fifth string. Defaults to None.
+            str6 (str, optional): Sixth string. Defaults to None.
     )pbdoc", 
     py::arg("str1"), 
     py::arg("str2") = nullptr, 
@@ -437,55 +574,34 @@ void init_analyzer_results(py::module_ &m) {
             str: Tabular text string
     )pbdoc");
 
-    // Utility methods
+    // =============== 7. Utility Methods ===============
     analyzer_results.def("get_string_for_display_base", &AnalyzerResults::GetStringForDisplayBase, R"pbdoc(
         Get a string representation of a frame value using the specified display base.
         
         Args:
-            frame_id: Index of the frame
-            channel: Channel to get the value for
-            disp_base: Display base to use
+            frame_id (U64): Index of the frame
+            channel (Channel): Channel to get the value for
+            disp_base (DisplayBase): Display base to use
             
         Returns:
             str: String representation of the value
     )pbdoc", py::arg("frame_id"), py::arg("channel"), py::arg("disp_base"));
 
-    analyzer_results.def("update_export_progress_and_check_for_cancel", &AnalyzerResults::UpdateExportProgressAndCheckForCancel, R"pbdoc(
-        Update export progress and check if the user has canceled.
-        
-        Args:
-            completed_frames: Number of frames processed so far
-            total_frames: Total number of frames to process
-            
-        Returns:
-            bool: True if export should continue, False if canceled
-    )pbdoc", py::arg("completed_frames"), py::arg("total_frames"));
-
     analyzer_results.def("do_bubbles_appear_on_channel", &AnalyzerResults::DoBubblesAppearOnChannel, R"pbdoc(
         Check if bubble text appears on a channel.
         
         Args:
-            channel: Channel to check
+            channel (Channel): Channel to check
             
         Returns:
             bool: True if bubble text appears on the channel
     )pbdoc", py::arg("channel"));
 
-    analyzer_results.def("do_markers_appear_on_channel", &AnalyzerResults::DoMarkersAppearOnChannel, R"pbdoc(
-        Check if markers appear on a channel.
-        
-        Args:
-            channel: Channel to check
-            
-        Returns:
-            bool: True if markers appear on the channel
-    )pbdoc", py::arg("channel"));
-
     analyzer_results.def("get_frames_in_range", [](AnalyzerResults &self, S64 starting_sample_inclusive, 
-                                                  S64 ending_sample_inclusive) {
+                                                 S64 ending_sample_inclusive) {
         U64 first_frame_index, last_frame_index;
         bool result = self.GetFramesInRange(starting_sample_inclusive, ending_sample_inclusive, 
-                                           &first_frame_index, &last_frame_index);
+                                          &first_frame_index, &last_frame_index);
         
         if (result) {
             return py::make_tuple(true, first_frame_index, last_frame_index);
@@ -496,74 +612,65 @@ void init_analyzer_results(py::module_ &m) {
         Get frames within a sample range.
         
         Args:
-            starting_sample_inclusive: First sample in the range
-            ending_sample_inclusive: Last sample in the range
+            starting_sample_inclusive (S64): First sample in the range
+            ending_sample_inclusive (S64): Last sample in the range
             
         Returns:
             tuple: (found, first_frame_index, last_frame_index)
-                found: True if frames were found in the range
-                first_frame_index: Index of the first frame in the range
-                last_frame_index: Index of the last frame in the range
+                - found (bool): True if frames were found in the range
+                - first_frame_index (U64): Index of the first frame in the range
+                - last_frame_index (U64): Index of the last frame in the range
     )pbdoc", py::arg("starting_sample_inclusive"), py::arg("ending_sample_inclusive"));
 
-    analyzer_results.def("get_markers_in_range", [](AnalyzerResults &self, Channel &channel, 
-                                                   S64 starting_sample_inclusive, 
-                                                   S64 ending_sample_inclusive) {
-        U64 first_marker_index, last_marker_index;
-        bool result = self.GetMarkersInRange(channel, starting_sample_inclusive, 
-                                            ending_sample_inclusive, 
-                                            &first_marker_index, &last_marker_index);
-        
-        if (result) {
-            return py::make_tuple(true, first_marker_index, last_marker_index);
-        } else {
-            return py::make_tuple(false, 0, 0);
-        }
+    // =============== 8. Search Methods ===============
+    analyzer_results.def("build_search_data", [](AnalyzerResults &self, U64 frame_id, DisplayBase disp_base, int channel_list_index) {
+        char result[1024]; // Buffer for the result
+        const char* search_str = self.BuildSearchData(frame_id, disp_base, channel_list_index, result);
+        return std::string(search_str);
     }, R"pbdoc(
-        Get markers within a sample range.
+        Build search data for a frame.
+        
+        This is used by the search feature in the UI.
         
         Args:
-            channel: Channel to get markers for
-            starting_sample_inclusive: First sample in the range
-            ending_sample_inclusive: Last sample in the range
+            frame_id (U64): Index of the frame
+            disp_base (DisplayBase): Display base to use
+            channel_list_index (int): Index of the channel in the channel list
             
         Returns:
-            tuple: (found, first_marker_index, last_marker_index)
-                found: True if markers were found in the range
-                first_marker_index: Index of the first marker in the range
-                last_marker_index: Index of the last marker in the range
-    )pbdoc", py::arg("channel"), py::arg("starting_sample_inclusive"), py::arg("ending_sample_inclusive"));
+            str: Search data string
+    )pbdoc", py::arg("frame_id"), py::arg("disp_base"), py::arg("channel_list_index"));
 
-    analyzer_results.def("get_marker", [](AnalyzerResults &self, Channel &channel, U64 marker_index) {
-        AnalyzerResults::MarkerType marker_type;
-        U64 marker_sample;
-        self.GetMarker(channel, marker_index, &marker_type, &marker_sample);
-        return py::make_tuple(marker_type, marker_sample);
-    }, R"pbdoc(
-        Get information about a marker.
+    // =============== 9. Export Control Methods ===============
+    analyzer_results.def("start_export_thread", &AnalyzerResults::StartExportThread, R"pbdoc(
+        Start an export operation in a background thread.
+        
+        This method starts a thread that calls generate_export_file().
         
         Args:
-            channel: Channel the marker is on
-            marker_index: Index of the marker
-            
-        Returns:
-            tuple: (marker_type, marker_sample)
-                marker_type: Type of the marker
-                marker_sample: Sample number of the marker
-    )pbdoc", py::arg("channel"), py::arg("marker_index"));
+            file (str): Path to the output file
+            display_base (DisplayBase): Display base to use
+            export_type_user_id (U32): ID of the export type selected by the user
+    )pbdoc", py::arg("file"), py::arg("display_base"), py::arg("export_type_user_id"));
 
-    analyzer_results.def("get_num_markers", &AnalyzerResults::GetNumMarkers, R"pbdoc(
-        Get the number of markers on a channel.
+    analyzer_results.def("update_export_progress_and_check_for_cancel", &AnalyzerResults::UpdateExportProgressAndCheckForCancel, R"pbdoc(
+        Update export progress and check if the user has canceled.
+        
+        This should be called periodically during generate_export_file() to update
+        the progress indicator and check if the user has canceled the export.
         
         Args:
-            channel: Channel to count markers for
+            completed_frames (U64): Number of frames processed so far
+            total_frames (U64): Total number of frames to process
             
         Returns:
-            U64: Number of markers
-    )pbdoc", py::arg("channel"));
+            bool: True if export should continue, False if canceled
+    )pbdoc", py::arg("completed_frames"), py::arg("total_frames"));
 
     analyzer_results.def("cancel_export", &AnalyzerResults::CancelExport, R"pbdoc(
         Cancel an in-progress export operation.
+        
+        This can be called to cancel an export operation started with start_export_thread().
     )pbdoc");
 
     analyzer_results.def("get_progress", &AnalyzerResults::GetProgress, R"pbdoc(

@@ -31,3 +31,28 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 ├── tests/ # Test cases
 ├── setup.py # Build configuration
 ├── pyproject.toml # Project metadata
+
+## Pybind11 Binding Style Guide for Kingst LA
+
+1. Method Organization:
+   - Group by type: pure virtuals → virtuals → utilities → process control → internal
+   - Mark internal methods with underscore prefix (_method_name)
+2. Naming:
+   - Use snake_case for Python-facing methods
+   - Keep original CamelCase in C++ implementation calls
+   - Use static_cast<> for overloaded methods
+3. Documentation:
+   - Use R"pbdoc(...)" for all docstrings
+   - Document parameter types, return values, and ownership
+   - Include usage notes for complex methods
+4. Memory Management:
+   - Specify return_value_policy for all pointer returns
+   - Use reference policy for borrowed pointers (don't delete)
+   - Use take_ownership for transferred ownership
+5. Parameters:
+   - Always use py::arg("name") for all parameters
+   - Document default values in docstrings
+6. Trampolines:
+   - Implement all virtual methods in trampoline classes
+   - Use PYBIND11_OVERRIDE_PURE for pure virtuals
+   - Use PYBIND11_OVERRIDE for virtuals with defaults

@@ -21,6 +21,9 @@ public:
     // Default constructor
     using Analyzer::Analyzer;
 
+    // Virtual destructor
+    ~PyAnalyzer() override = default;
+
     // Override all pure virtual methods with trampolines to Python
     void WorkerThread() override {
         PYBIND11_OVERRIDE_PURE(
@@ -72,6 +75,14 @@ public:
             SetupResults          // Method name
         );
     }
+
+    const char* GetAnalyzerVersion() const override {
+        PYBIND11_OVERRIDE(
+            const char*,          // Return type
+            Analyzer,             // Parent class
+            GetAnalyzerVersion    // Method name
+        );
+    }
 };
 
 void init_analyzer(py::module_ &m) {
@@ -82,11 +93,11 @@ void init_analyzer(py::module_ &m) {
         This is an abstract base class that must be subclassed to create custom protocol analyzers.
         The key methods that must be implemented are:
         
-        - WorkerThread(): Contains the main analysis logic
-        - GenerateSimulationData(): Creates simulated data for testing
-        - GetMinimumSampleRateHz(): Returns minimum required sample rate
-        - GetAnalyzerName(): Returns analyzer name
-        - NeedsRerun(): Checks if analysis needs to be rerun
+        - worker_thread(): Contains the main analysis logic
+        - generate_simulation_data(): Creates simulated data for testing
+        - get_minimum_sample_rate_hz(): Returns minimum required sample rate
+        - get_analyzer_name(): Returns analyzer name
+        - needs_rerun(): Checks if analysis needs to be rerun
     )pbdoc");
 
     // Add constructors
@@ -152,6 +163,15 @@ void init_analyzer(py::module_ &m) {
         
         This method is called before the analyzer is run to set up the results.
         The default implementation does nothing.
+    )pbdoc");
+
+    analyzer.def("get_analyzer_version", &Analyzer::GetAnalyzerVersion, R"pbdoc(
+        Get the analyzer version.
+        
+        Returns:
+            str: Analyzer version string
+            
+        The default implementation returns a version based on the build date.
     )pbdoc");
 
     // Add non-virtual utility methods
@@ -222,18 +242,41 @@ void init_analyzer(py::module_ &m) {
         Returns:
             double: Progress as a value between 0.0 and 1.0
     )pbdoc");
-
-    // Add version methods
-    analyzer.def("get_analyzer_version", &Analyzer::GetAnalyzerVersion, R"pbdoc(
-        Get the analyzer version.
+    
+    // Process control methods
+    analyzer.def("start_processing", static_cast<void (Analyzer::*)()>(&Analyzer::StartProcessing), R"pbdoc(
+        Start processing from the beginning.
         
-        Returns:
-            str: Analyzer version string
+        This method starts the analyzer worker thread to begin processing data.
     )pbdoc");
-
-    // Add internal methods that users typically don't need to call
+    
+    analyzer.def("start_processing_from", static_cast<void (Analyzer::*)(U64)>(&Analyzer::StartProcessing), R"pbdoc(
+        Start processing from a specific sample.
+        
+        Args:
+            starting_sample: Sample number to start processing from
+    )pbdoc", py::arg("starting_sample"));
+    
+    analyzer.def("stop_worker_thread", &Analyzer::StopWorkerThread, R"pbdoc(
+        Stop the worker thread.
+        
+        This method stops the analyzer worker thread.
+    )pbdoc");
+    
+    // Internal methods (exposed for completeness but marked with underscore)
     analyzer.def("_kill_thread", &Analyzer::KillThread, "Internal: Kill the worker thread");
     analyzer.def("_set_thread_must_exit", &Analyzer::SetThreadMustExit, "Internal: Set flag that thread must exit");
     analyzer.def("_get_analyzer_settings", &Analyzer::GetAnalyzerSettings, "Internal: Get analyzer settings", 
                 py::return_value_policy::reference);
+    analyzer.def("_does_analyzer_use_device", &Analyzer::DoesAnalyzerUseDevice, "Internal: Check if analyzer uses device", 
+                py::arg("device_id"));
+    analyzer.def("_is_valid", &Analyzer::IsValid, "Internal: Check if channels are valid", 
+                py::arg("channel_array"), py::arg("count"));
+    analyzer.def("_initial_worker_thread", &Analyzer::InitialWorkerThread, "Internal: Initialize worker thread");
+    analyzer.def("_get_analyzer_results", &Analyzer::GetAnalyzerResults, "Internal: Get analyzer results", 
+                py::arg("analyzer_results"));
+    
+    // Add attribute access for mData if needed
+    // Since mData is protected and a struct AnalyzerData, consider exposing needed properties
+    // through dedicated Python properties or methods if required
 }
