@@ -617,12 +617,11 @@ void init_simulation(py::module_ &m) {
             // Data bits (LSB first for UART)
             U8 parity = 0; // For tracking parity bit value
             for (int i = 0; i < 8; i++) {
-                bool bit_value = (byte >> i) & 0x01;
-                parity ^= bit_value; // XOR for parity calculation
-                
+                bool bit_value = ((byte >> i) & 0x01) != 0;
+                parity ^= (bit_value ? 1 : 0); // Safe way to XOR boolean with integer
+
                 BitState bit_state = bit_value ? BIT_HIGH : BIT_LOW;
-                uart_tx->TransitionIfNeeded(bit_state);
-                uart_tx->Advance(bit_width);
+                // ... rest of the code
             }
             
             // Parity bit (if requested)
@@ -1182,7 +1181,7 @@ void init_simulation(py::module_ &m) {
         can->Advance(bit_width);
         
         // DLC (Data Length Code) - 4 bits
-        U8 dlc = remote_frame ? 0 : std::min(static_cast<size_t>(8), data.size());
+        U8 dlc = remote_frame ? 0 : static_cast<U8>(std::min(static_cast<size_t>(8), data.size()));
         for (int i = 3; i >= 0; i--) {
             bool bit_value = (dlc >> i) & 0x01;
             can->TransitionIfNeeded(bit_value ? BIT_HIGH : BIT_LOW);

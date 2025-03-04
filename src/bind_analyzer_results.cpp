@@ -12,9 +12,13 @@
 
 namespace py = pybind11;
 
+// Wrapper class to access protected methods
 class AnalyzerResultsWrapper : public AnalyzerResults {
 public:
-    using AnalyzerResults::AnalyzerResults; // Inherit constructors
+    // Don't inherit constructors - define manually
+    AnalyzerResultsWrapper() : AnalyzerResults() {}
+    
+    // Method to expose protected UpdateExportProgressAndCheckForCancel
     bool PublicUpdateExportProgressAndCheckForCancel(U64 completed_frames, U64 total_frames) {
         return UpdateExportProgressAndCheckForCancel(completed_frames, total_frames);
     }
@@ -22,15 +26,10 @@ public:
 
 // Trampoline class for AnalyzerResults
 // This allows Python classes to inherit from and override the virtual methods
-class PyAnalyzerResults : public AnalyzerResultsWrapper {
+class PyAnalyzerResults : public AnalyzerResults {
 public:
     // Default constructor
-    using AnalyzerResults::AnalyzerResults;
-
-    // Expose protected methods as public
-    bool PublicUpdateExportProgressAndCheckForCancel(U64 completed_frames, U64 total_frames) {
-        return UpdateExportProgressAndCheckForCancel(completed_frames, total_frames);
-    }
+    PyAnalyzerResults() : AnalyzerResults() {}
 
     // =============== Pure Virtual Methods ===============
     void GenerateBubbleText(U64 frame_index, Channel &channel, DisplayBase display_base) override {
@@ -666,9 +665,11 @@ void init_analyzer_results(py::module_ &m) {
             export_type_user_id (U32): ID of the export type selected by the user
     )pbdoc", py::arg("file"), py::arg("display_base"), py::arg("export_type_user_id"));
 
-    analyzer_results.def("update_export_progress_and_check_for_cancel", [](AnalyzerResults& self, U64 completed_frames, U64 total_frames) {
-        // Create a public wrapper since UpdateExportProgressAndCheckForCancel is protected
-        return self.UpdateExportProgressAndCheckForCancel(completed_frames, total_frames);
+    // Create a wrapper instance to access protected method
+    AnalyzerResultsWrapper wrapper;
+    analyzer_results.def("update_export_progress_and_check_for_cancel", [&wrapper](AnalyzerResults& self, U64 completed_frames, U64 total_frames) {
+        // Using the wrapper to call the protected method
+        return wrapper.PublicUpdateExportProgressAndCheckForCancel(completed_frames, total_frames);
     }, R"pbdoc(
         Update export progress and check if the user has canceled.
         

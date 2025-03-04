@@ -8,6 +8,7 @@
 #include <pybind11/operators.h>
 #include "LogicPublicTypes.h"
 #include "AnalyzerTypes.h"
+#include <limits>
 
 namespace py = pybind11;
 
@@ -26,24 +27,24 @@ void init_basic_types(py::module_ &m) {
     // ---- Integer Type Definitions and Bounds ----
     
     // 8-bit integers
-    m.attr("S8_MIN") = (int)(-128);
-    m.attr("S8_MAX") = (int)127;
-    m.attr("U8_MAX") = (int)255;
+    m.attr("S8_MIN") = static_cast<int>(-128);
+    m.attr("S8_MAX") = static_cast<int>(127);
+    m.attr("U8_MAX") = static_cast<int>(255);
     
     // 16-bit integers
-    m.attr("S16_MIN") = (int)(-32768);
-    m.attr("S16_MAX") = (int)32767;
-    m.attr("U16_MAX") = (int)65535;
+    m.attr("S16_MIN") = static_cast<int>(-32768);
+    m.attr("S16_MAX") = static_cast<int>(32767);
+    m.attr("U16_MAX") = static_cast<int>(65535);
     
-    // 32-bit integers
-    m.attr("S32_MIN") = (int)(-2147483648);
-    m.attr("S32_MAX") = (int)2147483647;
-    m.attr("U32_MAX") = (unsigned long)4294967295;
+    // 32-bit integers - using std::numeric_limits to avoid hard-coding values
+    m.attr("S32_MIN") = std::numeric_limits<S32>::min();
+    m.attr("S32_MAX") = std::numeric_limits<S32>::max();
+    m.attr("U32_MAX") = std::numeric_limits<U32>::max();
     
     // 64-bit integers (Python int has arbitrary precision)
-    m.attr("S64_MIN") = py::int("-9223372036854775808");
-    m.attr("S64_MAX") = py::int("9223372036854775807");
-    m.attr("U64_MAX") = py::int("18446744073709551615");
+    m.attr("S64_MIN") = py::int_("-9223372036854775808");
+    m.attr("S64_MAX") = py::int_("9223372036854775807");
+    m.attr("U64_MAX") = py::int_("18446744073709551615");
     
     // ---- LogicPublicTypes.h - Basic types and enums ----
     

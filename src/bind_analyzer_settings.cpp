@@ -12,7 +12,39 @@
 
 namespace py = pybind11;
 
-
+// Wrapper class to access protected methods in AnalyzerSettings
+class AnalyzerSettingsWrapper : public AnalyzerSettings {
+public:
+    // Use base class constructor
+    AnalyzerSettingsWrapper() : AnalyzerSettings() {}
+    
+    // Expose protected methods as public
+    void PublicClearChannels() { ClearChannels(); }
+    
+    void PublicAddChannel(Channel &channel, const char *channel_label, bool is_used) {
+        AddChannel(channel, channel_label, is_used);
+    }
+    
+    void PublicSetErrorText(const char *error_text) {
+        SetErrorText(error_text);
+    }
+    
+    void PublicAddInterface(AnalyzerSettingInterface *analyzer_setting_interface) {
+        AddInterface(analyzer_setting_interface);
+    }
+    
+    void PublicAddExportOption(U32 user_id, const char *menu_text) {
+        AddExportOption(user_id, menu_text);
+    }
+    
+    void PublicAddExportExtension(U32 user_id, const char *extension_description, const char *extension) {
+        AddExportExtension(user_id, extension_description, extension);
+    }
+    
+    const char* PublicSetReturnString(const char *str) {
+        return SetReturnString(str);
+    }
+};
 
 // Trampoline class for AnalyzerSettings
 // This allows Python classes to inherit from and override the virtual methods
@@ -58,6 +90,9 @@ public:
 };
 
 void init_analyzer_settings(py::module_ &m) {
+    // Create a singleton wrapper for accessing protected methods
+    AnalyzerSettingsWrapper wrapper;
+    
     // Bind the AnalyzerInterfaceTypeId enum
     py::enum_<AnalyzerInterfaceTypeId>(m, "AnalyzerInterfaceTypeId", R"pbdoc(
         Enum defining the types of analyzer setting interfaces.
@@ -514,14 +549,18 @@ void init_analyzer_settings(py::module_ &m) {
             str: Brief description string
     )pbdoc", py::return_value_policy::reference);
 
-    // Protected methods exposed for use in derived classes
-    analyzer_settings.def("clear_channels", &AnalyzerSettings::ClearChannels, R"pbdoc(
+    // Protected methods exposed for use in derived classes using our wrapper
+    analyzer_settings.def("clear_channels", [&wrapper](AnalyzerSettings &self) {
+        wrapper.PublicClearChannels();
+    }, R"pbdoc(
         Clear all reported channels.
         
         Call this before adding channels if the channel configuration changes.
     )pbdoc");
 
-    analyzer_settings.def("add_channel", &AnalyzerSettings::AddChannel, R"pbdoc(
+    analyzer_settings.def("add_channel", [&wrapper](AnalyzerSettings &self, Channel &channel, const char *channel_label, bool is_used) {
+        wrapper.PublicAddChannel(channel, channel_label, is_used);
+    }, R"pbdoc(
         Add a channel to the analyzer.
         
         Args:
@@ -530,14 +569,18 @@ void init_analyzer_settings(py::module_ &m) {
             is_used (bool): Whether the channel is used by the analyzer
     )pbdoc", py::arg("channel"), py::arg("channel_label"), py::arg("is_used"));
 
-    analyzer_settings.def("set_error_text", &AnalyzerSettings::SetErrorText, R"pbdoc(
+    analyzer_settings.def("set_error_text", [&wrapper](AnalyzerSettings &self, const char *error_text) {
+        wrapper.PublicSetErrorText(error_text);
+    }, R"pbdoc(
         Set error text for invalid settings.
         
         Args:
             error_text (str): Error message to display
     )pbdoc", py::arg("error_text"));
 
-    analyzer_settings.def("add_interface", &AnalyzerSettings::AddInterface, R"pbdoc(
+    analyzer_settings.def("add_interface", [&wrapper](AnalyzerSettings &self, AnalyzerSettingInterface *analyzer_setting_interface) {
+        wrapper.PublicAddInterface(analyzer_setting_interface);
+    }, R"pbdoc(
         Add a setting interface.
         
         Args:
@@ -547,7 +590,9 @@ void init_analyzer_settings(py::module_ &m) {
             The caller must maintain ownership of the interface object.
     )pbdoc", py::arg("analyzer_setting_interface"));
 
-    analyzer_settings.def("add_export_option", &AnalyzerSettings::AddExportOption, R"pbdoc(
+    analyzer_settings.def("add_export_option", [&wrapper](AnalyzerSettings &self, U32 user_id, const char *menu_text) {
+        wrapper.PublicAddExportOption(user_id, menu_text);
+    }, R"pbdoc(
         Add an export option to the analyzer.
         
         Args:
@@ -555,7 +600,9 @@ void init_analyzer_settings(py::module_ &m) {
             menu_text (str): Text to display in the export menu
     )pbdoc", py::arg("user_id"), py::arg("menu_text"));
 
-    analyzer_settings.def("add_export_extension", &AnalyzerSettings::AddExportExtension, R"pbdoc(
+    analyzer_settings.def("add_export_extension", [&wrapper](AnalyzerSettings &self, U32 user_id, const char *extension_description, const char *extension) {
+        wrapper.PublicAddExportExtension(user_id, extension_description, extension);
+    }, R"pbdoc(
         Add a file extension for an export option.
         
         Args:
@@ -564,7 +611,9 @@ void init_analyzer_settings(py::module_ &m) {
             extension (str): File extension (e.g., "csv")
     )pbdoc", py::arg("user_id"), py::arg("extension_description"), py::arg("extension"));
 
-    analyzer_settings.def("set_return_string", &AnalyzerSettings::SetReturnString, R"pbdoc(
+    analyzer_settings.def("set_return_string", [&wrapper](AnalyzerSettings &self, const char *str) {
+        return wrapper.PublicSetReturnString(str);
+    }, R"pbdoc(
         Set the string to return from SaveSettings.
         
         Args:
