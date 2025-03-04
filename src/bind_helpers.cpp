@@ -726,27 +726,10 @@ void init_helpers(py::module_ &m) {
     )pbdoc");
 
     simple_archive.def("deserialize_string", [](SimpleArchive& self) {
-        // Create a temporary buffer to hold the string
-        char buffer[1024] = {0};
-        const char* data = buffer;
-        
-        // Use a custom approach instead of the operator>>
-        // First get the serialized string
-        std::string serialized_data = self.GetString();
-        
-        // Parse the string to find the next quoted string value
-        std::string result;
-        size_t pos = serialized_data.find("\"");
-        if (pos != std::string::npos) {
-            size_t end_pos = serialized_data.find("\"", pos + 1);
-            if (end_pos != std::string::npos) {
-                result = serialized_data.substr(pos + 1, end_pos - pos - 1);
-                return py::make_tuple(true, result);
-            }
-        }
-        
-        // If we reach here, we couldn't find a properly formatted string
-        return py::make_tuple(false, std::string());
+        char* data = nullptr;  // Initialize to nullptr
+        bool success = self >> data; // This should now work properly
+        // Return the string value if successful, empty string otherwise
+        return py::make_tuple(success, success && data ? std::string(data) : std::string());
     }, R"pbdoc(
         Deserialize a string value.
 
@@ -874,8 +857,8 @@ void init_helpers(py::module_ &m) {
                 success = self >> data;
                 value = py::cast(data);
             } else if (type == "str" || type == "string") {
-                const char* data;
-                success = self >> data;
+                char data[256];  // Allocate a buffer of fixed size
+                bool success = self >> data;
                 value = success ? py::cast(std::string(data)) : py::cast(std::string());
             } else if (type == "channel") {
                 Channel data;

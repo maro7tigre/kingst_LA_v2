@@ -18,6 +18,11 @@ public:
     // Use base class constructor
     AnalyzerSettingsWrapper() : AnalyzerSettings() {}
     
+    // Add implementations for pure virtual methods
+    bool SetSettingsFromInterfaces() override { return true; }
+    void LoadSettings(const char* settings) override {}
+    const char* SaveSettings() override { return ""; }
+
     // Expose protected methods as public
     void PublicClearChannels() { ClearChannels(); }
     
@@ -48,10 +53,10 @@ public:
 
 // Trampoline class for AnalyzerSettings
 // This allows Python classes to inherit from and override the virtual methods
-class PyAnalyzerSettings : public AnalyzerSettings {
+class PyAnalyzerSettings : public AnalyzerSettingsWrapper {
 public:
     // Default constructor
-    using AnalyzerSettings::AnalyzerSettings;
+    using AnalyzerSettingsWrapper::AnalyzerSettingsWrapper;
 
     // Pure virtual methods with trampolines to Python
     bool SetSettingsFromInterfaces() override {
@@ -91,7 +96,7 @@ public:
 
 void init_analyzer_settings(py::module_ &m) {
     // Create a singleton wrapper for accessing protected methods
-    AnalyzerSettingsWrapper wrapper;
+    AnalyzerSettings;
     
     // Bind the AnalyzerInterfaceTypeId enum
     py::enum_<AnalyzerInterfaceTypeId>(m, "AnalyzerInterfaceTypeId", R"pbdoc(

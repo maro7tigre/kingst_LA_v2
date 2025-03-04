@@ -42,9 +42,9 @@ void init_basic_types(py::module_ &m) {
     m.attr("U32_MAX") = std::numeric_limits<U32>::max();
     
     // 64-bit integers (Python int has arbitrary precision)
-    m.attr("S64_MIN") = py::int_("-9223372036854775808");
-    m.attr("S64_MAX") = py::int_("9223372036854775807");
-    m.attr("U64_MAX") = py::int_("18446744073709551615");
+    m.attr("S64_MIN") = py::int_(static_cast<int64_t>(-9223372036854775807LL - 1));
+    m.attr("S64_MAX") = py::int_(static_cast<int64_t>(9223372036854775807LL));
+    m.attr("U64_MAX") = py::int_(static_cast<uint64_t>(18446744073709551615ULL));
     
     // ---- LogicPublicTypes.h - Basic types and enums ----
     

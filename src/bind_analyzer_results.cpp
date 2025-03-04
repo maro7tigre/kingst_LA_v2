@@ -17,7 +17,14 @@ class AnalyzerResultsWrapper : public AnalyzerResults {
 public:
     // Don't inherit constructors - define manually
     AnalyzerResultsWrapper() : AnalyzerResults() {}
-    
+
+    // Add implementations for pure virtual methods
+    void GenerateBubbleText(U64 frame_index, Channel &channel, DisplayBase display_base) override {}
+    void GenerateExportFile(const char *file, DisplayBase display_base, U32 export_type_user_id) override {}
+    void GenerateFrameTabularText(U64 frame_index, DisplayBase display_base) override {}
+    void GeneratePacketTabularText(U64 packet_id, DisplayBase display_base) override {}
+    void GenerateTransactionTabularText(U64 transaction_id, DisplayBase display_base) override {}
+
     // Method to expose protected UpdateExportProgressAndCheckForCancel
     bool PublicUpdateExportProgressAndCheckForCancel(U64 completed_frames, U64 total_frames) {
         return UpdateExportProgressAndCheckForCancel(completed_frames, total_frames);
@@ -26,10 +33,10 @@ public:
 
 // Trampoline class for AnalyzerResults
 // This allows Python classes to inherit from and override the virtual methods
-class PyAnalyzerResults : public AnalyzerResults {
+class PyAnalyzerResults : public AnalyzerResultsWrapper {
 public:
     // Default constructor
-    PyAnalyzerResults() : AnalyzerResults() {}
+    PyAnalyzerResults() : AnalyzerResultsWrapper() {}
 
     // =============== Pure Virtual Methods ===============
     void GenerateBubbleText(U64 frame_index, Channel &channel, DisplayBase display_base) override {
