@@ -726,12 +726,20 @@ void init_helpers(py::module_ &m) {
     )pbdoc");
 
     simple_archive.def("deserialize_string", [](SimpleArchive& self) {
-        const char* data;
-        bool success = self >> data;
-        return py::make_tuple(success, success ? std::string(data) : std::string());
+        const char* data = nullptr;
+        // Fix for the operator >> issue with const char*
+        bool success = false;
+        try {
+            // Call the operator explicitly with the right reference type
+            success = (self >> data);
+        } catch (const std::exception& e) {
+            // Handle potential exceptions
+            py::print("Error deserializing string:", e.what());
+        }
+        return py::make_tuple(success, success && data ? std::string(data) : std::string());
     }, R"pbdoc(
         Deserialize a string value.
-        
+
         Returns:
             tuple: (success, value)
                 success (bool): True if successful
@@ -764,20 +772,27 @@ void init_helpers(py::module_ &m) {
                 py::int_ py_int = py::cast<py::int_>(arg);
                 py::int_ max_u32 = py::cast(static_cast<U64>(std::numeric_limits<U32>::max()));
                 
-                if (py_int.operator<(0)) {
-                    // Negative number - use signed type
-                    if (py_int.operator>=(-std::numeric_limits<S32>::max())) {
-                        success = success && (self << static_cast<S32>(py::cast<S64>(py_int)));
+                try {
+                    if (py::int_(0) > py_int) {
+                        // Negative number - use signed type
+                        // Get the absolute value and compare to max
+                        py::int_ abs_val = py_int < 0 ? -py_int : py_int;
+                        if (abs_val <= py::int_(std::numeric_limits<S32>::max())) {
+                            success = success && (self << static_cast<S32>(py::cast<S64>(py_int)));
+                        } else {
+                            success = success && (self << py::cast<S64>(py_int));
+                        }
                     } else {
-                        success = success && (self << py::cast<S64>(py_int));
+                        // Positive number - use unsigned type if it fits
+                        if (py_int <= py::int_(std::numeric_limits<U32>::max())) {
+                            success = success && (self << static_cast<U32>(py::cast<U64>(py_int)));
+                        } else {
+                            success = success && (self << py::cast<U64>(py_int));
+                        }
                     }
-                } else {
-                    // Positive number - use unsigned type
-                    if (py_int.operator<=(max_u32)) {
-                        success = success && (self << static_cast<U32>(py::cast<U64>(py_int)));
-                    } else {
-                        success = success && (self << py::cast<U64>(py_int));
-                    }
+                } catch (const std::exception& e) {
+                    py::print("Error serializing int:", e.what());
+                    success = false;
                 }
             } else if (py::isinstance<py::float_>(arg)) {
                 double value = arg.cast<double>();

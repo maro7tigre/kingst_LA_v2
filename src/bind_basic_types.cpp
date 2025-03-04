@@ -41,9 +41,9 @@ void init_basic_types(py::module_ &m) {
     m.attr("U32_MAX") = (unsigned long)4294967295;
     
     // 64-bit integers (Python int has arbitrary precision)
-    m.attr("S64_MIN") = py::cast<py::int_>("-9223372036854775808");
-    m.attr("S64_MAX") = py::cast<py::int_>("9223372036854775807");
-    m.attr("U64_MAX") = py::cast<py::int_>("18446744073709551615");
+    m.attr("S64_MIN") = py::int("-9223372036854775808");
+    m.attr("S64_MAX") = py::int("9223372036854775807");
+    m.attr("U64_MAX") = py::int("18446744073709551615");
     
     // ---- LogicPublicTypes.h - Basic types and enums ----
     
@@ -256,10 +256,8 @@ void init_basic_types(py::module_ &m) {
     m.attr("Acknowledge") = analyzer_enums.attr("Acknowledge");
     m.attr("Sign") = analyzer_enums.attr("Sign");
     
-    // Add module-level utility constants
-    py::enum_<py::none_type>(m, "_PresentMarkers", "Internal enum for special marker values")
-        .value("NO_SHIFT_ORDER_SPECIFIED", py::none(), "Indicates no shift order was specified")
-        .value("NO_EDGE_DIRECTION_SPECIFIED", py::none(), "Indicates no edge direction was specified")
-        .value("NO_PARITY_SPECIFIED", py::none(), "Indicates no parity was specified")
-        .export_values();
+    // Add module-level constants for marker values instead of an enum
+    m.attr("NO_SHIFT_ORDER_SPECIFIED") = py::none();
+    m.attr("NO_EDGE_DIRECTION_SPECIFIED") = py::none();
+    m.attr("NO_PARITY_SPECIFIED") = py::none();
 }

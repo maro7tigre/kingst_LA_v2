@@ -12,6 +12,8 @@
 
 namespace py = pybind11;
 
+
+
 // Trampoline class for AnalyzerSettings
 // This allows Python classes to inherit from and override the virtual methods
 class PyAnalyzerSettings : public AnalyzerSettings {
