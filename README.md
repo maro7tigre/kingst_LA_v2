@@ -20,6 +20,9 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │ ├── LogicPublicTypes.h  
 │ └── SimulationChannelDescriptor.h  
 ├── lib/ # Kingst SDK libraries Download from : https://www.qdkingst.com/en  
+│ ├── Win64
+| │ ├── Analyzer.dll  
+| │ ├── Analyzer.lib  
 ├── src/ # C++ binding code  
 │ ├── main.cpp                    # Main module definition  
 │ ├── bind_basic_types.cpp        # Bindings for Channel, BitState, DisplayBase, etc.  
@@ -31,15 +34,8 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │ └── bind_helpers.cpp            # Bindings for AnalyzerHelpers  
 ├── kingst_analyzer/ # Python package  
 │ ├── init.py  
-│ ├── utils.py # Helper functions  
-│ └── ...  
 ├── examples/ # Example scripts  
-│ ├── basic_capture.py  
-│ ├── spi_analyzer.py  
-│ └── ...  
-├── tests/ # Test cases  
-├── setup.py # Build configuration  
-├── pyproject.toml # Project metadata  
+├── kingst_analyzer.cp313-win_amd64.pyd
   
 ## Pybind11 Binding Style Guide for Kingst LA
 
