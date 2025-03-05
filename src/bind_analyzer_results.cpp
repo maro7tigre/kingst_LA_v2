@@ -33,10 +33,10 @@ public:
 
 // Trampoline class for AnalyzerResults
 // This allows Python classes to inherit from and override the virtual methods
-class PyAnalyzerResults : public AnalyzerResultsWrapper {
+class PyAnalyzerResults : public AnalyzerResults {
 public:
     // Default constructor
-    PyAnalyzerResults() : AnalyzerResultsWrapper() {}
+    PyAnalyzerResults() : AnalyzerResults() {}
 
     // =============== Pure Virtual Methods ===============
     void GenerateBubbleText(U64 frame_index, Channel &channel, DisplayBase display_base) override {
