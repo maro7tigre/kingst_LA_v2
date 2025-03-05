@@ -569,7 +569,8 @@ void init_simulation(py::module_ &m) {
         if (index >= self.GetCount()) {
             throw py::index_error("Index out of range");
         }
-        return &(self.GetArray()[index]);
+        // Get a reference to the descriptor, not a pointer to it
+        return (self.GetArray()[index]);
     }, R"pbdoc(
         Get a channel descriptor by index.
         

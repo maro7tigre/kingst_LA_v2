@@ -726,8 +726,8 @@ void init_helpers(py::module_ &m) {
     )pbdoc");
 
     simple_archive.def("deserialize_string", [](SimpleArchive& self) {
-        char* data = nullptr;  // Initialize to nullptr
-        bool success = self >> data; // This should now work properly
+        const char* data = nullptr;  // Use const char* to match the operator>> signature
+        bool success = self >> &data; // Pass address of pointer
         // Return the string value if successful, empty string otherwise
         return py::make_tuple(success, success && data ? std::string(data) : std::string());
     }, R"pbdoc(
@@ -766,21 +766,23 @@ void init_helpers(py::module_ &m) {
                 py::int_ max_u32 = py::cast(static_cast<U64>(std::numeric_limits<U32>::max()));
                 
                 try {
-                    if (py::int_(0) > py_int) {
+                    // Convert to C++ long long to do the comparison
+                    long long value = py::cast<long long>(py_int);
+                    if (value < 0) {
                         // Negative number - use signed type
                         // Get the absolute value and compare to max
-                        py::int_ abs_val = py_int < 0 ? -py_int : py_int;
-                        if (abs_val <= py::int_(std::numeric_limits<S32>::max())) {
-                            success = success && (self << static_cast<S32>(py::cast<S64>(py_int)));
+                        long long abs_val = value < 0 ? -value : value;
+                        if (abs_val <= static_cast<long long>(std::numeric_limits<S32>::max())) {
+                            success = success && (self << static_cast<S32>(value));
                         } else {
-                            success = success && (self << py::cast<S64>(py_int));
+                            success = success && (self << static_cast<S64>(value));
                         }
                     } else {
                         // Positive number - use unsigned type if it fits
-                        if (py_int <= py::int_(std::numeric_limits<U32>::max())) {
-                            success = success && (self << static_cast<U32>(py::cast<U64>(py_int)));
+                        if (value <= static_cast<long long>(std::numeric_limits<U32>::max())) {
+                            success = success && (self << static_cast<U32>(value));
                         } else {
-                            success = success && (self << py::cast<U64>(py_int));
+                            success = success && (self << static_cast<U64>(value));
                         }
                     }
                 } catch (const std::exception& e) {
@@ -857,9 +859,9 @@ void init_helpers(py::module_ &m) {
                 success = self >> data;
                 value = py::cast(data);
             } else if (type == "str" || type == "string") {
-                char data[256];  // Allocate a buffer of fixed size
-                bool success = self >> data;
-                value = success ? py::cast(std::string(data)) : py::cast(std::string());
+                const char* data = nullptr;
+                success = self >> &data;
+                value = (success && data) ? py::cast(std::string(data)) : py::cast(std::string());
             } else if (type == "channel") {
                 Channel data;
                 success = self >> data;
