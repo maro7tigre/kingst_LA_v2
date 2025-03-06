@@ -13,8 +13,8 @@ Example:
     Create a simple UART simulation:
     
     ```python
-    from kingst_LA import simulation as sim
-    from kingst_LA.types import Channel, BitState
+    from kingst_analyzer import simulation as sim
+    from kingst_analyzer.types import Channel, BitState
     
     # Create a simulation manager
     manager = sim.SimulationManager(sample_rate=10_000_000)  # 10 MHz

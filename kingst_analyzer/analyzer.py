@@ -9,8 +9,8 @@ Developers will typically subclass Analyzer to create protocol-specific analyzer
 
 Example:
     ```python
-    from kingst_LA.analyzer import Analyzer
-    from kingst_LA.settings import SPIAnalyzerSettings
+    from kingst_analyzer.analyzer import Analyzer
+    from kingst_analyzer.settings import SPIAnalyzerSettings
     
     class SPIAnalyzer(Analyzer):
         def __init__(self):
@@ -797,7 +797,7 @@ class Analyzer(BaseAnalyzer):
     
     Example:
         ```python
-        from kingst_LA.analyzer import Analyzer
+        from kingst_analyzer.analyzer import Analyzer
         
         class SPIAnalyzer(Analyzer):
             def __init__(self):

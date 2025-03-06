@@ -1,10 +1,7 @@
-"""
-Shared test fixtures for Kingst Logic Analyzer Python binding tests.
-"""
-
-import pytest
+# In tests/conftest.py
 import os
 import sys
+import pytest
 from pathlib import Path
 
 # Add the package root to the Python path if running tests directly
