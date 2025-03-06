@@ -77,10 +77,10 @@ except ImportError as e:
             LeadingEdge = 0
             TrailingEdge = 1
         
-        class Parity(Enum):
-            None = 0
-            Even = 1
-            Odd = 2
+        class Parity(IntEnum):
+            None_ = int(getattr(_AnalyzerEnums.Parity, 'None'))  # Use getattr to access 'None' as a string
+            Even = int(_AnalyzerEnums.Parity.Even)
+            Odd = int(_AnalyzerEnums.Parity.Odd)
         
         class Acknowledge(Enum):
             Ack = 0
@@ -538,7 +538,7 @@ class Channel:
         Returns:
             Int: The device identifier
         """
-        return self._channel.mDeviceId
+        return self._channel.device_id
     
     @device_id.setter
     def device_id(self, value: int) -> None:
@@ -553,7 +553,7 @@ class Channel:
         """
         if value < 0:
             raise ValueError("Device ID cannot be negative")
-        self._channel.mDeviceId = value
+        self._channel.device_id = value
     
     @property
     def channel_index(self) -> int:
@@ -566,7 +566,7 @@ class Channel:
         Returns:
             Int: The channel index
         """
-        return self._channel.mChannelIndex
+        return self._channel.channel_index
     
     @channel_index.setter
     def channel_index(self, value: int) -> None:
@@ -581,7 +581,7 @@ class Channel:
         """
         if value < 0:
             raise ValueError("Channel index cannot be negative")
-        self._channel.mChannelIndex = value
+        self._channel.channel_index = value
     
     def is_valid(self) -> bool:
         """
@@ -671,7 +671,7 @@ class Channel:
 # =============================================================================
 
 # Undefined channel constant - used to represent no channel selected
-UNDEFINED_CHANNEL = Channel(_UNDEFINED_CHANNEL.mDeviceId, _UNDEFINED_CHANNEL.mChannelIndex)
+UNDEFINED_CHANNEL = Channel(_UNDEFINED_CHANNEL.device_id, _UNDEFINED_CHANNEL.channel_index)
 
 
 # =============================================================================

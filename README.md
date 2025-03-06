@@ -8,7 +8,7 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 
 
 ## Project  Structure
-  
+KINGST_LA_V2
 ├── include/ # Kingst SDK headers Download from : https://www.qdkingst.com/en  
 │ ├── Analyzer.h  
 │ ├── AnalyzerChannelData.h  
@@ -58,7 +58,7 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │   ├── test_spi_analysis.py     # Complete SPI analyzer test  
 │   └── test_i2c_analysis.py     # Complete I2C analyzer test  
 ├── examples/ # Example scripts  
-├── kingst_analyzer.cp313-win_amd64.pyd  
+├── _core_.cp313-win_amd64.pyd  
   
 ## Pybind11 Binding Style Guide for Kingst LA
 

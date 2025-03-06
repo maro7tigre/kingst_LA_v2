@@ -37,7 +37,7 @@ void init_helpers(py::module_ &m);          // Binds helper utilities
 /**
  * Define the Python module
  */
-PYBIND11_MODULE(kingst_analyzer, m) {
+PYBIND11_MODULE(_core, m) {
     m.doc() = R"pbdoc(
         Kingst Logic Analyzer Python Bindings
         -------------------------------------
@@ -64,7 +64,7 @@ PYBIND11_MODULE(kingst_analyzer, m) {
         5. Generate results and add frames to display in the UI
 
         Example:
-            import kingst_analyzer as ka
+            import _core as ka
             
             # Define channels
             data_channel = ka.Channel(0, 0)  # Device 0, Channel 0

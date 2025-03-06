@@ -8,10 +8,10 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "You must build this project with a 64-bit toolchain to match your 64-bit Python")
 endif()
 
-# Find Python3 (change COMPONENTS if you need Interpreter/Development etc.)
+# Find Python3
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
-# Add the pybind11 subdirectory (assumes pybind11 is cloned into ./pybind11)
+# Add the pybind11 subdirectory
 add_subdirectory(pybind11)
 
 # Include directories for Kingst SDK headers and Python headers
@@ -38,21 +38,56 @@ set(SOURCES
     src/bind_helpers.cpp
 )
 
-# Create the Python module (the module name can be kingst_analyzer or another name)
-pybind11_add_module(kingst_analyzer ${SOURCES})
+# Create the Python module - named _core
+pybind11_add_module(_core ${SOURCES})
 
 # Link the module with the Kingst SDK libraries and Python libraries
 if(WIN32)
-    target_link_libraries(kingst_analyzer PRIVATE 
+    target_link_libraries(_core PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/lib/Win64/Analyzer.lib
         ${Python3_LIBRARIES}
     )
+    
+    # Set RUNTIME_OUTPUT_DIRECTORY to put the .pyd file directly in the package
+    set_target_properties(_core PROPERTIES 
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer
+    )
+    
+    # Add a post-build command to copy the required DLLs to the package directory
+    add_custom_command(TARGET _core POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/lib/Win64/Analyzer.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer/
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Analyzer.dll to package directory"
+    )
+    
+    # Add any other DLLs that might be needed
+    # For example, if you have other DLLs, add them here:
+    # COMMAND ${CMAKE_COMMAND} -E copy
+    #     ${CMAKE_CURRENT_SOURCE_DIR}/lib/Win64/OtherDLL.dll
+    #     ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer/
 else()
-    target_link_libraries(kingst_analyzer PRIVATE 
+    target_link_libraries(_core PRIVATE 
         Analyzer
         ${Python3_LIBRARIES}
     )
+    
+    # Set RPATH for Linux/macOS
+    set_target_properties(_core PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer
+        INSTALL_RPATH "$ORIGIN"
+    )
+    
+    # Add a post-build command to copy the required shared libraries to the package directory
+    add_custom_command(TARGET _core POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/lib/Linux/libAnalyzer.so
+            ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer/
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying libAnalyzer.so to package directory"
+    )
 endif()
 
-# Optionally install the built module into the Python package directory
-install(TARGETS kingst_analyzer DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer)
+# Installation targets (optional)
+install(TARGETS _core DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/kingst_analyzer)
