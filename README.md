@@ -32,7 +32,7 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │ ├── bind_channel_data.cpp       # Bindings for AnalyzerChannelData  
 │ ├── bind_simulation.cpp         # Bindings for SimulationChannelDescriptor  
 │ └── bind_helpers.cpp            # Bindings for AnalyzerHelpers  
-│ ├── kingst_analyzer/ # Python package  
+├── kingst_analyzer/ # Python package  
 │ ├── __init__.py              # Package exports and version info  
 │ ├── analyzer.py              # Main Analyzer class interface  
 │ ├── settings.py              # Settings classes and interfaces  
@@ -42,8 +42,23 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │ ├── types.py                 # Enums, constants, and basic types  
 │ ├── helpers.py               # Utility functions  
 │ └── exceptions.py            # Custom exception classes  
+├── tests/  
+│ ├── __init__.py  
+│ ├── conftest.py                  # Shared fixtures and test configuration  
+│ ├── test_types.py                # Tests for types.py (BitState, Channel, etc.)  
+│ ├── test_analyzer.py             # Tests for analyzer.py (Analyzer class)  
+│ ├── test_settings.py             # Tests for settings.py (AnalyzerSettings classes)  
+│ ├── test_results.py              # Tests for results.py (AnalyzerResults, Frame)  
+│ ├── test_channel.py              # Tests for channel.py (Channel data functionality)  
+│ ├── test_simulation.py           # Tests for simulation.py (SimulationChannelDescriptor)  
+│ ├── test_helpers.py              # Tests for helpers.py (Utility functions)  
+│ └── integration/                 # Integration tests combining multiple components  
+│ │ ├── __init__.py  
+│ │ ├── test_uart_analysis.py    # Complete UART analyzer test  
+│ │ ├── test_spi_analysis.py     # Complete SPI analyzer test  
+│ │ └── test_i2c_analysis.py     # Complete I2C analyzer test  
 ├── examples/ # Example scripts  
-├── kingst_analyzer.cp313-win_amd64.pyd
+├── kingst_analyzer.cp313-win_amd64.pyd  
   
 ## Pybind11 Binding Style Guide for Kingst LA
 
