@@ -32,8 +32,16 @@ This library provides Python bindings for the Kingst Logic Analyzer, allowing yo
 │ ├── bind_channel_data.cpp       # Bindings for AnalyzerChannelData  
 │ ├── bind_simulation.cpp         # Bindings for SimulationChannelDescriptor  
 │ └── bind_helpers.cpp            # Bindings for AnalyzerHelpers  
-├── kingst_analyzer/ # Python package  
-│ ├── init.py  
+│ ├── kingst_analyzer/ # Python package  
+│ ├── __init__.py              # Package exports and version info  
+│ ├── analyzer.py              # Main Analyzer class interface  
+│ ├── settings.py              # Settings classes and interfaces  
+│ ├── results.py               # Results and frame handling  
+│ ├── channel.py               # Channel data and management  
+│ ├── simulation.py            # Simulation functionality  
+│ ├── types.py                 # Enums, constants, and basic types  
+│ ├── helpers.py               # Utility functions  
+│ └── exceptions.py            # Custom exception classes  
 ├── examples/ # Example scripts  
 ├── kingst_analyzer.cp313-win_amd64.pyd
   
