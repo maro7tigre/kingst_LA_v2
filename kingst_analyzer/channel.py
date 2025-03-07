@@ -15,17 +15,7 @@ from dataclasses import dataclass
 
 # Import the C++ bindings - this would reference the actual binding module
 # The actual import path may need to be adjusted based on the package structure
-try:
-    from kingst_analyzer import AnalyzerChannelData, BitState
-except ImportError:
-    # For development/documentation without the actual bindings
-    class BitState(Enum):
-        LOW = 0
-        HIGH = 1
-        
-    class AnalyzerChannelData:
-        """Stub class for documentation"""
-        pass
+from kingst_analyzer._core import AnalyzerChannelData, BitState
 
 
 class Channel:

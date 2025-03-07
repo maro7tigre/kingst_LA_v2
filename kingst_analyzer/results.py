@@ -55,54 +55,7 @@ import csv
 import datetime
 
 # Import the C++ bindings
-try:
-    import kingst_analyzer._bindings as _bindings
-except ImportError:
-    # For development/documentation without the actual bindings
-    class _bindings:
-        """Mock bindings for documentation and development."""
-        
-        class MarkerType(IntEnum):
-            DOT = 0
-            ERROR_DOT = 1
-            SQUARE = 2
-            ERROR_SQUARE = 3
-            UP_ARROW = 4
-            DOWN_ARROW = 5
-            X = 6
-            ERROR_X = 7
-            START = 8
-            STOP = 9
-            ONE = 10
-            ZERO = 11
-            
-        class Frame:
-            """Mock Frame class."""
-            def __init__(self):
-                self.starting_sample = 0
-                self.ending_sample = 0
-                self.data1 = 0
-                self.data2 = 0
-                self.type = 0
-                self.flags = 0
-                
-            def has_flag(self, flag):
-                return bool(self.flags & flag)
-                
-        class AnalyzerResults:
-            """Mock AnalyzerResults class."""
-            def __init__(self):
-                pass
-                
-            def get_num_frames(self):
-                return 0
-                
-            # Additional mock methods would be defined here
-        
-        # Mock constants
-        DISPLAY_AS_ERROR_FLAG = 0x80
-        DISPLAY_AS_WARNING_FLAG = 0x40
-        INVALID_RESULT_INDEX = 0xFFFFFFFFFFFFFFFF
+from kingst_analyzer import _core as _ka
 
 # Optional dependencies for advanced functionality
 try:
@@ -126,9 +79,9 @@ except ImportError:
     HAS_MATPLOTLIB = False
 
 # Re-export constants
-DISPLAY_AS_ERROR_FLAG = _bindings.DISPLAY_AS_ERROR_FLAG
-DISPLAY_AS_WARNING_FLAG = _bindings.DISPLAY_AS_WARNING_FLAG
-INVALID_RESULT_INDEX = _bindings.INVALID_RESULT_INDEX
+DISPLAY_AS_ERROR_FLAG = _ka.DISPLAY_AS_ERROR_FLAG
+DISPLAY_AS_WARNING_FLAG = _ka.DISPLAY_AS_WARNING_FLAG
+INVALID_RESULT_INDEX = _ka.INVALID_RESULT_INDEX
 
 # Type variables for generic collections
 T = TypeVar('T')
@@ -156,18 +109,18 @@ class MarkerType(IntEnum):
         ONE: A one marker (1)
         ZERO: A zero marker (0)
     """
-    DOT = _bindings.MarkerType.DOT
-    ERROR_DOT = _bindings.MarkerType.ERROR_DOT
-    SQUARE = _bindings.MarkerType.SQUARE
-    ERROR_SQUARE = _bindings.MarkerType.ERROR_SQUARE
-    UP_ARROW = _bindings.MarkerType.UP_ARROW
-    DOWN_ARROW = _bindings.MarkerType.DOWN_ARROW
-    X = _bindings.MarkerType.X
-    ERROR_X = _bindings.MarkerType.ERROR_X
-    START = _bindings.MarkerType.START
-    STOP = _bindings.MarkerType.STOP
-    ONE = _bindings.MarkerType.ONE
-    ZERO = _bindings.MarkerType.ZERO
+    DOT = _ka.MarkerType.DOT
+    ERROR_DOT = _ka.MarkerType.ERROR_DOT
+    SQUARE = _ka.MarkerType.SQUARE
+    ERROR_SQUARE = _ka.MarkerType.ERROR_SQUARE
+    UP_ARROW = _ka.MarkerType.UP_ARROW
+    DOWN_ARROW = _ka.MarkerType.DOWN_ARROW
+    X = _ka.MarkerType.X
+    ERROR_X = _ka.MarkerType.ERROR_X
+    START = _ka.MarkerType.START
+    STOP = _ka.MarkerType.STOP
+    ONE = _ka.MarkerType.ONE
+    ZERO = _ka.MarkerType.ZERO
 
 
 class DisplayBase(IntEnum):
@@ -250,17 +203,17 @@ class Frame:
         is_warning (bool): True if this frame has the warning flag set
     """
     
-    _frame: _bindings.Frame
+    _frame: _ka.Frame
     
-    def __init__(self, frame: Union[_bindings.Frame, Dict]):
+    def __init__(self, frame: Union[_ka.Frame, Dict]):
         """
         Initialize a Frame from a binding frame or a dictionary.
         
         Args:
-            frame: Either a _bindings.Frame object or a dictionary with frame attributes
+            frame: Either a _ka.Frame object or a dictionary with frame attributes
         """
         if isinstance(frame, dict):
-            self._frame = _bindings.Frame()
+            self._frame = _ka.Frame()
             self._frame.starting_sample = frame.get('starting_sample', 0)
             self._frame.ending_sample = frame.get('ending_sample', 0)
             self._frame.data1 = frame.get('data1', 0)
@@ -401,7 +354,7 @@ class Frame:
             
         return display_base.format_value(value, width)
         
-    def _get_binding_frame(self) -> _bindings.Frame:
+    def _get_binding_frame(self) -> _ka.Frame:
         """
         Get the underlying binding frame.
         
@@ -2086,7 +2039,7 @@ class AnalyzerResults:
         >>> python_results.export("results.csv", display_base=DisplayBase.HEXADECIMAL)
     """
     
-    def __init__(self, results: '_bindings.AnalyzerResults'):
+    def __init__(self, results: '_ka.AnalyzerResults'):
         """
         Initialize AnalyzerResults.
         
@@ -3308,7 +3261,7 @@ class AnalyzerResults:
                 f"errors={error_count}, frame_types={frame_type_counts})")
 
 
-class PyAnalyzerResults(_bindings.AnalyzerResults):
+class PyAnalyzerResults(_ka.AnalyzerResults):
     """
     Base class for implementing custom analyzer results in Python.
     
@@ -3424,7 +3377,7 @@ class PyAnalyzerResults(_bindings.AnalyzerResults):
 
 # Helper functions
 
-def create_analyzer_results(results: '_bindings.AnalyzerResults') -> AnalyzerResults:
+def create_analyzer_results(results: '_ka.AnalyzerResults') -> AnalyzerResults:
     """
     Create a Python AnalyzerResults wrapper for a C++ bindings object.
     

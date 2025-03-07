@@ -57,30 +57,7 @@ import time
 import weakref
 
 # Import the low-level bindings
-try:
-    import kingst_analyzer as ka
-except ImportError:
-    # For development/documentation without the actual bindings
-    class ka:
-        """Mock module for documentation"""
-        class Analyzer:
-            """Mock Analyzer class"""
-            pass
-        class AnalyzerSettings:
-            """Mock AnalyzerSettings class"""
-            pass
-        class AnalyzerResults:
-            """Mock AnalyzerResults class"""
-            pass
-        class Channel:
-            """Mock Channel class"""
-            pass
-        class Frame:
-            """Mock Frame class"""
-            pass
-        class FrameType:
-            """Mock FrameType enum"""
-            pass
+from kingst_analyzer import _core as _ka
 
 
 class AnalyzerState(Enum):
@@ -212,7 +189,7 @@ class BaseAnalyzer(abc.ABC):
         Raises:
             ValueError: If settings is not a valid analyzer settings object
         """
-        if not isinstance(settings, ka.AnalyzerSettings):
+        if not isinstance(settings, _ka.AnalyzerSettings):
             raise ValueError("Settings must be an instance of AnalyzerSettings")
             
         self._settings = settings
@@ -266,7 +243,7 @@ class BaseAnalyzer(abc.ABC):
         return 0.0
     
     @property
-    def results(self) -> Optional["ka.AnalyzerResults"]:
+    def results(self) -> Optional["_ka.AnalyzerResults"]:
         """
         Get the analyzer results.
         
@@ -528,7 +505,7 @@ class BaseAnalyzer(abc.ABC):
     # Analysis utility methods
     # -------------------------------------------------------------------------
     
-    def get_channel_data(self, channel: "ka.Channel") -> "ka.AnalyzerChannelData":
+    def get_channel_data(self, channel: "_ka.Channel") -> "_ka.AnalyzerChannelData":
         """
         Get the analyzer channel data for a specific channel.
         
@@ -641,7 +618,7 @@ class BaseAnalyzer(abc.ABC):
     # Batch analysis methods
     # -------------------------------------------------------------------------
     
-    def analyze_file(self, file_path: str, **options) -> "ka.AnalyzerResults":
+    def analyze_file(self, file_path: str, **options) -> "_ka.AnalyzerResults":
         """
         Analyze data from a file.
         
@@ -662,7 +639,7 @@ class BaseAnalyzer(abc.ABC):
         """
         raise NotImplementedError("File analysis is not yet implemented")
     
-    def analyze_batch(self, file_paths: List[str], **options) -> List["ka.AnalyzerResults"]:
+    def analyze_batch(self, file_paths: List[str], **options) -> List["_ka.AnalyzerResults"]:
         """
         Batch analyze multiple files.
         
@@ -832,7 +809,7 @@ class Analyzer(BaseAnalyzer):
         ```
     """
     
-    class PyAnalyzerImpl(ka.Analyzer):
+    class PyAnalyzerImpl(_ka.Analyzer):
         """Inner class that implements the C++ Analyzer interface."""
         
         def __init__(self, outer):
@@ -944,7 +921,7 @@ class ProtocolAnalyzer(Analyzer):
         """
         return self.frame_types.get(frame_type, f"Unknown ({frame_type})")
     
-    def decode_frame(self, frame: "ka.Frame") -> Dict[str, Any]:
+    def decode_frame(self, frame: "_ka.Frame") -> Dict[str, Any]:
         """
         Decode a frame into a dictionary of values.
         
@@ -965,7 +942,7 @@ class ProtocolAnalyzer(Analyzer):
     def find_frames(self, frame_type: Optional[int] = None, 
                     start_time: Optional[float] = None,
                     end_time: Optional[float] = None,
-                    max_frames: int = 1000) -> Iterator["ka.Frame"]:
+                    max_frames: int = 1000) -> Iterator["_ka.Frame"]:
         """
         Find frames matching the specified criteria.
         

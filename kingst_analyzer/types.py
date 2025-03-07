@@ -17,94 +17,30 @@ import sys
 from dataclasses import dataclass
 
 # Import the underlying C++ bindings - would reference the compiled pyd module
-try:
-    from kingst_analyzer._core import (
-        # Enums
-        BitState as _BitState,
-        DisplayBase as _DisplayBase,
-        
-        # Classes
-        Channel as _Channel,
-        
-        # Analyzer Enums
-        AnalyzerEnums as _AnalyzerEnums,
-        
-        # Constants
-        UNDEFINED_CHANNEL as _UNDEFINED_CHANNEL,
-        
-        # Functions
-        toggle_bit as _toggle_bit,
-        invert_bit as _invert_bit,
-        
-        # Integer boundaries
-        S8_MIN, S8_MAX, U8_MAX,
-        S16_MIN, S16_MAX, U16_MAX,
-        S32_MIN, S32_MAX, U32_MAX,
-        S64_MIN, S64_MAX, U64_MAX,
-    )
-except ImportError as e:
-    # Provide stubs for documentation and development without the actual bindings
-    # This enables IDE completion and documentation generation
-    warnings.warn(f"Could not import C++ bindings (_core module): {e}. Using stub classes.")
+from kingst_analyzer._core import (
+    # Enums
+    BitState as _BitState,
+    DisplayBase as _DisplayBase,
     
-    class _BitState(Enum):
-        LOW = 0
-        HIGH = 1
+    # Classes
+    Channel as _Channel,
     
-    class _DisplayBase(Enum):
-        Binary = 0
-        Decimal = 1
-        Hexadecimal = 2
-        ASCII = 3
-        AsciiHex = 4
+    # Analyzer Enums
+    AnalyzerEnums as _AnalyzerEnums,
     
-    class _Channel:
-        def __init__(self, *args):
-            self.device_id = 0 if len(args) == 0 else args[0]
-            self.channel_index = 0 if len(args) < 2 else args[1]
+    # Constants
+    UNDEFINED_CHANNEL as _UNDEFINED_CHANNEL,
     
-    # Stub class for AnalyzerEnums
-    class _AnalyzerEnums:
-        class ShiftOrder(Enum):
-            MsbFirst = 0
-            LsbFirst = 1
-        
-        class EdgeDirection(Enum):
-            PosEdge = 0
-            NegEdge = 1
-        
-        class Edge(Enum):
-            LeadingEdge = 0
-            TrailingEdge = 1
-        
-        class Parity(IntEnum):
-            None_ = int(getattr(_AnalyzerEnums.Parity, 'None'))  # Use getattr to access 'None' as a string
-            Even = int(_AnalyzerEnums.Parity.Even)
-            Odd = int(_AnalyzerEnums.Parity.Odd)
-        
-        class Acknowledge(Enum):
-            Ack = 0
-            Nak = 1
-        
-        class Sign(Enum):
-            UnsignedInteger = 0
-            SignedInteger = 1
-    
-    # Stub constants
-    _UNDEFINED_CHANNEL = _Channel(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFF)
-    
-    # Stub functions
-    def _toggle_bit(bit): 
-        return _BitState.HIGH if bit == _BitState.LOW else _BitState.LOW
-    
-    def _invert_bit(bit):
-        return _BitState.HIGH if bit == _BitState.LOW else _BitState.LOW
+    # Functions
+    toggle_bit as _toggle_bit,
+    invert_bit as _invert_bit,
     
     # Integer boundaries
-    S8_MIN, S8_MAX, U8_MAX = -128, 127, 255
-    S16_MIN, S16_MAX, U16_MAX = -32768, 32767, 65535
-    S32_MIN, S32_MAX, U32_MAX = -2147483648, 2147483647, 4294967295
-    S64_MIN, S64_MAX, U64_MAX = -9223372036854775808, 9223372036854775807, 18446744073709551615
+    S8_MIN, S8_MAX, U8_MAX,
+    S16_MIN, S16_MAX, U16_MAX,
+    S32_MIN, S32_MAX, U32_MAX,
+    S64_MIN, S64_MAX, U64_MAX,
+)
 
 # Define exported names
 __all__ = [

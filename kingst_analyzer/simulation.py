@@ -42,30 +42,8 @@ from enum import Enum, auto
 from typing import List, Tuple, Dict, Optional, Union, Callable, Any, Sequence, Iterator, Set
 
 # Import the low-level bindings
-try:
-    from .. import _kingst_analyzer as _ka
-    from ..types import Channel, BitState
-except ImportError:
-    # For standalone testing and documentation
-    class _ka:
-        class SimulationChannelDescriptor:
-            pass
-        class SimulationChannelDescriptorGroup:
-            pass
-        class Channel:
-            pass
-        class BitState:
-            HIGH = 1
-            LOW = 0
-    
-    class Channel:
-        def __init__(self, index, name=None):
-            self.index = index
-            self.name = name
-    
-    class BitState:
-        HIGH = 1
-        LOW = 0
+from kingst_analyzer import _core as _ka
+from kingst_analyzer.types import Channel, BitState
 
 
 # Type aliases for better type hinting and documentation

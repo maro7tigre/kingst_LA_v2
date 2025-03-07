@@ -51,7 +51,7 @@ except ImportError:
     _HAS_MATPLOTLIB = False
 
 # Import the underlying C++ bindings
-from kingst_analyzer._kingst_analyzer import (
+from kingst_analyzer._core import (
     AnalyzerHelpers as _AnalyzerHelpers,
     BitExtractor, BitState, DataBuilder, SimpleArchive, ClockGenerator,
     DisplayBase, ShiftOrder

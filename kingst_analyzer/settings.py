@@ -54,72 +54,18 @@ from dataclasses import dataclass
 import warnings
 
 # Import the C++ bound classes
-try:
-    from kingst_analyzer import (
-        AnalyzerSettings as CppAnalyzerSettings,
-        AnalyzerSettingInterface,
-        AnalyzerSettingInterfaceChannel,
-        AnalyzerSettingInterfaceNumberList,
-        AnalyzerSettingInterfaceInteger,
-        AnalyzerSettingInterfaceText,
-        AnalyzerSettingInterfaceBool,
-        AnalyzerInterfaceTypeId,
-        Channel,
-        DisplayBase
-    )
-except ImportError:
-    # For development/documentation without the actual bindings
-    class AnalyzerInterfaceTypeId(Enum):
-        INTERFACE_BASE = 0
-        INTERFACE_CHANNEL = 1
-        INTERFACE_NUMBER_LIST = 2
-        INTERFACE_INTEGER = 3
-        INTERFACE_TEXT = 4
-        INTERFACE_BOOL = 5
-    
-    class Channel:
-        """Stub class for documentation"""
-        def __init__(self, device_index: int, channel_index: int):
-            self.device_index = device_index
-            self.channel_index = channel_index
-    
-    class DisplayBase(Enum):
-        ASCII = 0
-        DECIMAL = 1
-        HEXADECIMAL = 2
-        BINARY = 3
-        OCT = 4
-    
-    class AnalyzerSettingInterface:
-        """Stub class for documentation"""
-        pass
-        
-    class AnalyzerSettingInterfaceChannel(AnalyzerSettingInterface):
-        """Stub class for documentation"""
-        pass
-        
-    class AnalyzerSettingInterfaceNumberList(AnalyzerSettingInterface):
-        """Stub class for documentation"""
-        pass
-        
-    class AnalyzerSettingInterfaceInteger(AnalyzerSettingInterface):
-        """Stub class for documentation"""
-        pass
-        
-    class AnalyzerSettingInterfaceText(AnalyzerSettingInterface):
-        """Stub class for documentation"""
-        class TextType(Enum):
-            NormalText = 0
-            FilePath = 1
-            FolderPath = 2
-            
-    class AnalyzerSettingInterfaceBool(AnalyzerSettingInterface):
-        """Stub class for documentation"""
-        pass
-        
-    class CppAnalyzerSettings:
-        """Stub class for documentation"""
-        pass
+from kingst_analyzer._core import (
+    AnalyzerSettings as CppAnalyzerSettings,
+    AnalyzerSettingInterface,
+    AnalyzerSettingInterfaceChannel,
+    AnalyzerSettingInterfaceNumberList,
+    AnalyzerSettingInterfaceInteger,
+    AnalyzerSettingInterfaceText,
+    AnalyzerSettingInterfaceBool,
+    AnalyzerInterfaceTypeId,
+    Channel,
+    DisplayBase
+)
 
 __all__ = [
     'AnalyzerSettings',
