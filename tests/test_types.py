@@ -414,24 +414,26 @@ class TestParityFunctions:
     
     def test_check_parity_even(self):
         """Test the check_parity function with even parity."""
-        # Check correct even parity (total number of 1 bits is even)
-        assert check_parity(0x53, 8, AnalyzerEnums.Parity.Even, BitState.HIGH), "Even parity check incorrect"
+        # 0x53 (01010011) has 4 bits set - needs LOW parity bit to keep total even
+        assert check_parity(0x53, 8, AnalyzerEnums.Parity.Even, BitState.LOW), "Even parity check incorrect"
+        # 0x55 (01010101) has 4 bits set - needs LOW parity bit to keep total even
         assert check_parity(0x55, 8, AnalyzerEnums.Parity.Even, BitState.LOW), "Even parity check incorrect"
         
         # Check incorrect even parity
-        assert not check_parity(0x53, 8, AnalyzerEnums.Parity.Even, BitState.LOW), "Even parity check incorrect"
+        assert not check_parity(0x53, 8, AnalyzerEnums.Parity.Even, BitState.HIGH), "Even parity check incorrect"
         assert not check_parity(0x55, 8, AnalyzerEnums.Parity.Even, BitState.HIGH), "Even parity check incorrect"
     
     def test_check_parity_odd(self):
         """Test the check_parity function with odd parity."""
-        # Check correct odd parity (total number of 1 bits is odd)
-        assert check_parity(0x53, 8, AnalyzerEnums.Parity.Odd, BitState.LOW), "Odd parity check incorrect"
+        # 0x53 (01010011) has 4 bits set - needs HIGH parity bit to make total odd
+        assert check_parity(0x53, 8, AnalyzerEnums.Parity.Odd, BitState.HIGH), "Odd parity check incorrect"
+        # 0x55 (01010101) has 4 bits set - needs HIGH parity bit to make total odd
         assert check_parity(0x55, 8, AnalyzerEnums.Parity.Odd, BitState.HIGH), "Odd parity check incorrect"
         
         # Check incorrect odd parity
-        assert not check_parity(0x53, 8, AnalyzerEnums.Parity.Odd, BitState.HIGH), "Odd parity check incorrect"
+        assert not check_parity(0x53, 8, AnalyzerEnums.Parity.Odd, BitState.LOW), "Odd parity check incorrect"
         assert not check_parity(0x55, 8, AnalyzerEnums.Parity.Odd, BitState.LOW), "Odd parity check incorrect"
-    
+
     def test_check_parity_none_raises_error(self):
         """Test that check_parity with None_ parity type raises an error."""
         with pytest.raises(ValueError, match="Cannot check parity for 'None' parity type"):
@@ -810,7 +812,7 @@ class TestComprehensiveChecks:
         
         # Convert integer to bits, toggle one bit, convert back
         bits = int_to_bits(0x55, 8)  # 01010101
-        bits[3] = toggle_bit(bits[3])  # Toggle the 4th bit to get 01011101
+        bits[4] = toggle_bit(bits[4])  # Toggle the 4th bit to get 01011101
         value = bits_to_int(bits)
         assert value == 0x5D, "Bit manipulation chain produced incorrect result"
     
@@ -858,3 +860,7 @@ class TestComprehensiveChecks:
             # Verify even and odd parity bits are opposites
             assert even_parity_bit != odd_parity_bit, \
                 f"Even and odd parity bits should be opposites for {value:02X}"
+
+if __name__ == "__main__":
+    import pytest
+    pytest.main(["-v", __file__])

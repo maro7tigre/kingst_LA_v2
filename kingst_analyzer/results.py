@@ -14,7 +14,7 @@ The classes and functions in this module allow you to:
 
 Typical usage:
     >>> from kingst_analyzer import AnalyzerResults
-    >>> from kingst_LA.results import create_analyzer_results
+    >>> from kingst_analyzer.results import create_analyzer_results
     >>>
     >>> # Get Python wrapper for analyzer results
     >>> results = create_analyzer_results(analyzer.get_results())
@@ -3439,7 +3439,7 @@ def create_analyzer_results(results: '_bindings.AnalyzerResults') -> AnalyzerRes
         
     Example:
         >>> from kingst_analyzer import Analyzer
-        >>> from kingst_LA.results import create_analyzer_results
+        >>> from kingst_analyzer.results import create_analyzer_results
         >>> 
         >>> # Run the analyzer
         >>> analyzer = Analyzer(...)

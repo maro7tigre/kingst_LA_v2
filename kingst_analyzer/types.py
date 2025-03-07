@@ -164,6 +164,23 @@ class BitState(IntEnum):
         """Return a code-like representation for debugging."""
         return f"BitState.{self.name}"
 
+    @property
+    def _internal(self) -> _BitState:
+        """
+        Get the internal C++ BitState object.
+        
+        This is primarily for internal use by other components
+        that need to interact with the C++ SDK.
+        
+        Returns:
+            The underlying C++ BitState object
+        """
+        # Map Python enum values to C++ enum values
+        if self == BitState.LOW:
+            return _BitState.LOW
+        else:
+            return _BitState.HIGH
+
 
 class DisplayBase(IntEnum):
     """
@@ -387,15 +404,17 @@ class AnalyzerEnums:
             """
             if self == self.None_:
                 raise ValueError("Cannot calculate parity for 'None' parity type")
-            
+
             # Count the number of 1 bits in the value
             ones_count = bin(value & ((1 << bits) - 1)).count('1')
-            
+
             if self == self.Even:
                 # For even parity, parity bit is 1 if count of 1s is odd
-                return BitState.HIGH if ones_count % 2 else BitState.LOW
+                # (to make the total count of 1s including parity bit even)
+                return BitState.HIGH if ones_count % 2 == 1 else BitState.LOW
             else:  # Odd parity
                 # For odd parity, parity bit is 1 if count of 1s is even
+                # (to make the total count of 1s including parity bit odd)
                 return BitState.HIGH if ones_count % 2 == 0 else BitState.LOW
     
     class Acknowledge(IntEnum):
@@ -715,8 +734,8 @@ def toggle_bit(bit: Union[BitState, int]) -> BitState:
     elif not isinstance(bit, BitState):
         raise ValueError(f"Expected BitState or int, got {type(bit).__name__}")
     
-    # Call the underlying function
-    return BitState(_toggle_bit(bit))
+    # Simply toggle between LOW and HIGH without calling C++ function
+    return BitState.HIGH if bit == BitState.LOW else BitState.LOW
 
 
 def invert_bit(bit: Union[BitState, int]) -> BitState:
@@ -755,7 +774,7 @@ def invert_bit(bit: Union[BitState, int]) -> BitState:
         raise ValueError(f"Expected BitState or int, got {type(bit).__name__}")
     
     # Call the underlying function
-    return BitState(_invert_bit(bit))
+    return BitState(_invert_bit(bit._internal))
 
 
 # =============================================================================
@@ -904,6 +923,10 @@ def format_value(value: int, display_base: DisplayBase,
     """
     # Apply sign interpretation
     interpreted_value = sign.interpret_value(value, num_bits)
+    
+    # For decimal display base, use the interpreted value directly
+    if display_base == DisplayBase.Decimal and sign == AnalyzerEnums.Sign.SignedInteger:
+        return str(interpreted_value)
     
     # Format according to display base
     formatted = display_base.format_value(value, num_bits)
