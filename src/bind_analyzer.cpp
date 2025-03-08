@@ -1,6 +1,7 @@
 // bind_analyzer.cpp
 //
 // Python bindings for the Analyzer base class
+#include <iostream>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -38,8 +39,8 @@ public:
     // This avoids issues with the SimulationChannelDescriptor** parameter
     U32 GenerateSimulationData(U64 newest_sample_requested, U32 sample_rate, 
                               SimulationChannelDescriptor **simulation_channels) override {
-        // Simple implementation to satisfy the pure virtual requirement
-        // In Python, we'll use a different approach for simulation
+        // Simplest possible implementation - just return the sample rate
+        // Don't try to call into Python for this method
         return sample_rate;
     }
 
@@ -252,43 +253,28 @@ void init_analyzer(py::module_ &m) {
     )pbdoc");
     
     // Process control methods
-    analyzer.def("start_processing", [](py::object self) {
+    analyzer.def("start_processing", [](Analyzer &self) {
         try {
-            // Get the C++ object from the Python object
-            auto& analyzer = self.cast<Analyzer&>();
-            
-            // Verify proper initialization before proceeding
-            if (!analyzer.GetAnalyzerSettings()) {
-                throw std::runtime_error("Analyzer settings not initialized");
-            }
-            
-            // Attempt the operation
-            analyzer.StartProcessing();
-        } catch (const std::exception& e) {
-            // Convert C++ exceptions to Python exceptions
+            self.StartProcessing();
+        } 
+        catch (const std::exception &e) {
+            // Create a Python exception with the error message
             PyErr_SetString(PyExc_RuntimeError, e.what());
-            throw py::error_already_set();
-        } catch (...) {
-            // Handle unknown exceptions
-            PyErr_SetString(PyExc_RuntimeError, "Unknown error in start_processing");
             throw py::error_already_set();
         }
     }, R"pbdoc(
         Start processing from the beginning.
-        
+
         This method starts the analyzer worker thread to begin processing data.
-        
-        Raises:
-            RuntimeError: If processing cannot be started
     )pbdoc");
 
     analyzer.def("start_processing_from", [](Analyzer &self, U64 starting_sample) {
         try {
-            // Add any necessary validation or preparation
             self.StartProcessing(starting_sample);
-        } catch (const std::exception &e) {
-            throw py::error_already_set();
-        } catch (...) {
+        } 
+        catch (const std::exception &e) {
+            // Create a Python exception with the error message
+            PyErr_SetString(PyExc_RuntimeError, e.what());
             throw py::error_already_set();
         }
     }, R"pbdoc(
@@ -296,16 +282,8 @@ void init_analyzer(py::module_ &m) {
 
         Args:
             starting_sample: Sample number to start processing from
-
-        Raises:
-            RuntimeError: If processing cannot be started
     )pbdoc", py::arg("starting_sample"));
-    
-    analyzer.def("stop_worker_thread", &Analyzer::StopWorkerThread, R"pbdoc(
-        Stop the worker thread.
-        
-        This method stops the analyzer worker thread.
-    )pbdoc");
+
     
     // Internal methods (exposed for completeness but marked with underscore)
     analyzer.def("_kill_thread", &Analyzer::KillThread, "Internal: Kill the worker thread");

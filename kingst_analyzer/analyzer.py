@@ -818,144 +818,69 @@ class Analyzer(BaseAnalyzer):
     
     class PyAnalyzerImpl(_ka.Analyzer):
         """Inner class that implements the C++ Analyzer interface."""
-
+    
         def __init__(self, outer):
             """
             Initialize a PyAnalyzerImpl instance.
-
+    
             Args:
                 outer: The outer Analyzer instance
             """
+            # Important: Call the C++ constructor first
             super().__init__()
-            self.outer = weakref.ref(outer)  # Use weakref to avoid circular references
-            self._device_collection = None
-            self._condition_manager = None
-            self._progress_manager = None
-            self._is_initialized = False
-
-        def _ensure_initialized(self):
-            """Ensure the analyzer is properly initialized."""
-            if not self._initialized:
-                # Perform any necessary initialization
-                # This will depend on what's needed for proper setup before running
-                self._initialized = True
-
+            # Store a strong reference to avoid premature garbage collection
+            self.outer = outer
+    
         def worker_thread(self):
             """
-            Delegate to the outer class's worker_thread method.
-            This method is called by the C++ code when the analyzer is run.
+            Implementation of the C++ WorkerThread method.
+            This is called by the C++ code when the analyzer is run.
             """
-            outer = self.outer()
-            if outer is None:
-                warnings.warn("Outer analyzer object has been garbage collected")
-                return
-            outer.worker_thread()
-
+            try:
+                self.outer.worker_thread()
+            except Exception as e:
+                # Log the error but don't convert it - let it propagate
+                # so the C++ side can handle it properly
+                warnings.warn(f"Error in worker_thread: {str(e)}")
+                raise
+            
         def generate_simulation_data(self, newest_sample_requested, sample_rate, simulation_channels):
             """
             Implementation of the C++ GenerateSimulationData method.
-
-            This method is not meant to be called directly by Python code.
-            Python code should use _generate_simulation_data instead.
+            
+            This is a simplified implementation that delegates to the Python implementation
+            without trying to deal with the simulation_channels parameter directly.
             """
-            # Return sample rate as a simple implementation 
-            # that doesn't try to use the simulation_channels parameter
-            return sample_rate
-
-        def get_analyzer_name(self):
-            """
-            Delegate to the outer class's _get_analyzer_name method.
-
-            Returns:
-                str: Analyzer name
-            """
-            outer = self.outer()
-            if outer is None:
-                return "Unknown Analyzer (Outer object deleted)"
-            return outer._get_analyzer_name()
-
+            # This is a minimal implementation to satisfy the virtual method
+            # A proper implementation would need to handle simulation_channels correctly
+            try:
+                # Call the Python implementation if it exists
+                if hasattr(self.outer, "_generate_simulation_data"):
+                    return self.outer._generate_simulation_data(newest_sample_requested, sample_rate)
+                return sample_rate
+            except Exception as e:
+                warnings.warn(f"Error in generate_simulation_data: {str(e)}")
+                return sample_rate
+    
         def get_minimum_sample_rate_hz(self):
-            """
-            Delegate to the outer class's _get_minimum_sample_rate_hz method.
-
-            Returns:
-                int: Minimum sample rate in Hz
-            """
-            outer = self.outer()
-            if outer is None:
-                return 1000000  # Default to 1 MHz if outer is gone
-            return outer._get_minimum_sample_rate_hz()
-
+            """Implementation of the C++ GetMinimumSampleRateHz method."""
+            return self.outer._get_minimum_sample_rate_hz()
+    
+        def get_analyzer_name(self):
+            """Implementation of the C++ GetAnalyzerName method."""
+            return self.outer._get_analyzer_name()
+    
         def needs_rerun(self):
-            """
-            Delegate to the outer class's needs_rerun method.
-
-            Returns:
-                bool: True if the analyzer needs to be rerun
-            """
-            outer = self.outer()
-            if outer is None:
-                return False
-            return outer.needs_rerun()
-
+            """Implementation of the C++ NeedsRerun method."""
+            return self.outer.needs_rerun()
+    
         def setup_results(self):
-           """
-           Implementation of the C++ SetupResults method.
-           """
-           outer = self.outer()
-           if outer is None:
-               # Call the parent implementation if outer is gone
-               super().setup_results()
-               return
-
-           # Instead of calling outer.setup() which would cause recursion,
-           # call the C++ parent method directly
-           super().setup_results()
-
-           # We don't need to call any other methods on outer here
-           # since that would likely lead to recursion
-           
-        def start_processing(self):
-            """
-            Safely start processing from the beginning.
-
-            This wraps the C++ StartProcessing method with proper error handling.
-            """
-            self._ensure_initialized()
-            try:
-                # Call the C++ method safely
-                super().start_processing()
-            except Exception as e:
-                warnings.warn(f"Error in start_processing: {str(e)}")
-                raise
-
-        def start_processing_from(self, starting_sample):
-            """
-            Safely start processing from a specific sample.
-
-            This wraps the C++ StartProcessing(U64) method with proper error handling.
-
-            Args:
-                starting_sample: Sample number to start processing from
-            """
-            self._ensure_initialized()
-            try:
-                # Call the C++ method safely
-                super().start_processing_from(starting_sample)
-            except Exception as e:
-                warnings.warn(f"Error in start_processing_from: {str(e)}")
-                raise
-
-        def __del__(self):
-            """
-            Clean up resources when this object is deleted.
-            """
-            try:
-                # Clean up any resources if needed
-                pass
-            except Exception as e:
-                # Avoid errors during garbage collection
-                warnings.warn(f"Error in PyAnalyzerImpl.__del__: {e}")
+            """Implementation of the C++ SetupResults method."""
+            # First call the base class implementation
+            super().setup_results()
+            
+            # Then call our own setup method
+            self.outer.setup()
     
     def __init__(self):
         """Initialize a new Analyzer instance."""
@@ -975,9 +900,8 @@ class Analyzer(BaseAnalyzer):
         """
         Initialize the C++ analyzer instance.
 
-        This creates a new PyAnalyzerImpl instance that delegates to this
-        Analyzer instance. This allows Python subclasses to override the
-        virtual methods of the C++ Analyzer class.
+        This creates a Python implementation of the C++ Analyzer class that
+        delegates virtual method calls to this Python instance.
 
         Raises:
             AnalyzerInitError: If analyzer initialization fails
@@ -986,20 +910,13 @@ class Analyzer(BaseAnalyzer):
             # Create the Python implementation of the C++ Analyzer
             self._analyzer = self.PyAnalyzerImpl(self)
 
-            # CRITICAL FIX: For tests, we need to use mock objects instead of real C++ objects
-            # This is the crucial part that will prevent access violations in tests
-            if 'pytest' in sys.modules:
-                # We're running in a test environment
-                # Create a mock-friendly version that doesn't actually call C++ methods
-                self._setup_test_mode()
-            else:
-                # Set up settings if available
-                if self._settings:
-                    self._analyzer.set_analyzer_settings(self._settings)
+            # Set up settings if available
+            if self._settings:
+                self._analyzer.set_analyzer_settings(self._settings)
         except Exception as e:
             self._analyzer = None
             raise AnalyzerInitError(f"Failed to initialize analyzer: {e}")
-            
+
     def _setup_test_mode(self):
         """
         Set up the analyzer in test mode.

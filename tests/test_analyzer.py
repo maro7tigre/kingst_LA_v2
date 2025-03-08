@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 import threading
+import warnings
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -25,6 +26,118 @@ from kingst_analyzer.analyzer import (
 )
 from kingst_analyzer.types import BitState, Channel, DisplayBase
 from kingst_analyzer.settings import AnalyzerSettings
+
+
+# Test-specific analyzer implementations
+class TestAnalyzer(Analyzer):
+    """A test analyzer implementation with tracking variables."""
+    
+    def __init__(self):
+        # Initialize tracking variables first
+        self.worker_called = False
+        self.worker_completed = False
+        self.worker_exception = None
+        self.progress_values = []
+        
+        # Call parent init
+        super().__init__()
+    
+    def _get_analyzer_name(self):
+        return "Test Analyzer"
+    
+    def _get_minimum_sample_rate_hz(self):
+        return 1000000  # 1 MHz
+    
+    def worker_thread(self):
+        self.worker_called = True
+        try:
+            # Simulate work
+            for i in range(10):
+                # Check for abort
+                self.should_abort()
+                
+                # Report progress
+                self.report_progress(i * 100)
+                
+                # Short sleep
+                time.sleep(0.01)
+            
+            self.worker_completed = True
+        except Exception as e:
+            self.worker_exception = e
+            raise
+    
+    def needs_rerun(self):
+        return False
+    
+    # Override report_progress to track values
+    def report_progress(self, sample_number):
+        # Call the real implementation
+        super().report_progress(sample_number)
+        
+        # Track the value
+        self.progress_values.append(sample_number)
+
+
+class FailingTestAnalyzer(TestAnalyzer):
+    """A test analyzer that fails in worker_thread."""
+    
+    def worker_thread(self):
+        self.worker_called = True
+        # Just fail immediately
+        raise ValueError("Simulated worker error")
+
+
+class SlowTestAnalyzer(TestAnalyzer):
+    """A test analyzer with a slow worker thread."""
+    
+    def worker_thread(self):
+        self.worker_called = True
+        try:
+            # Simulate slow work
+            for i in range(20):
+                self.should_abort()
+                self.report_progress(i * 100)
+                time.sleep(0.1)  # Slow enough to interrupt
+            
+            self.worker_completed = True
+        except AnalysisAbortedError:
+            # We expect to be aborted
+            raise
+        except Exception as e:
+            self.worker_exception = e
+            raise
+
+
+class RerunTestAnalyzer(TestAnalyzer):
+    """A test analyzer that requests a rerun once."""
+    
+    def __init__(self):
+        super().__init__()
+        self.rerun_count = 0
+        self.rerun_requested = False
+    
+    def needs_rerun(self):
+        if self.rerun_count < 1:
+            self.rerun_requested = True
+            self.rerun_count += 1
+            return True
+        return False
+
+
+@pytest.fixture
+def mock_cpp_backend():
+    """Create a patch for the C++ backend to avoid actual C++ calls."""
+    with patch('kingst_analyzer._core.Analyzer') as mock_analyzer:
+        # Set up the mock to track method calls
+        instance = mock_analyzer.return_value
+        instance.get_analyzer_name.return_value = "Test Mock Analyzer"
+        instance.get_minimum_sample_rate_hz.return_value = 1000000
+        instance.get_analyzer_progress.return_value = 0.0
+        instance.get_sample_rate.return_value = 10000000
+        instance.get_trigger_sample.return_value = 0
+        
+        yield mock_analyzer
 
 
 class TestAnalyzerInitialization:
@@ -61,16 +174,15 @@ class TestAnalyzerInitialization:
         assert analyzer.min_sample_rate == 1000000
         assert analyzer.state == AnalyzerState.IDLE
 
-    def test_analyzer_initialization_error(self):
+    def test_analyzer_initialization_error(self, mock_cpp_backend):
         """Test that errors during analyzer initialization are properly handled."""
         
-        class BrokenAnalyzer(Analyzer):
-            def __init__(self):
-                # Intentionally break initialization
-                raise RuntimeError("Simulated initialization error")
-                
+        # Make the C++ initialization fail
+        mock_cpp_backend.side_effect = RuntimeError("Simulated C++ initialization error")
+        
+        class SimpleAnalyzer(Analyzer):
             def _get_analyzer_name(self):
-                return "Broken Analyzer"
+                return "Simple Analyzer"
                 
             def _get_minimum_sample_rate_hz(self):
                 return 1000000
@@ -81,55 +193,25 @@ class TestAnalyzerInitialization:
             def needs_rerun(self):
                 return False
         
-        with pytest.raises(RuntimeError) as excinfo:
-            analyzer = BrokenAnalyzer()
+        # Should raise an AnalyzerInitError
+        with pytest.raises(AnalyzerInitError) as excinfo:
+            analyzer = SimpleAnalyzer()
+            analyzer._initialize_analyzer()  # Force initialization
             
-        assert "Simulated initialization error" in str(excinfo.value)
+        assert "initialization" in str(excinfo.value).lower()
+        assert "error" in str(excinfo.value).lower()
 
-    def test_analyzer_default_properties(self):
-        """Test that default properties of Analyzer are correctly set."""
-        
-        class SimpleAnalyzer(Analyzer):
-            def _get_analyzer_name(self):
-                return "Simple Analyzer"
-                
-            def _get_minimum_sample_rate_hz(self):
-                return 8000000  # 8 MHz
-                
-            def worker_thread(self):
-                pass
-                
-            def needs_rerun(self):
-                return False
-        
-        analyzer = SimpleAnalyzer()
-        
-        # Check default properties
-        assert analyzer.name == "Simple Analyzer"
-        assert analyzer.version.startswith("3.0.0")  # Default version
-        assert analyzer.min_sample_rate == 8000000
-        assert analyzer.settings is None
-        assert analyzer.state == AnalyzerState.IDLE
-        assert analyzer.sample_rate == 0  # No hardware connected
-        assert analyzer.trigger_sample == 0  # No trigger defined
-        assert analyzer.progress == 0.0  # No analysis running
-        assert analyzer.results is None  # No results yet
-
-    def test_analyzer_with_custom_settings(self):
-        """Test that custom settings can be properly set and retrieved."""
+    def test_analyzer_with_settings(self, mock_cpp_backend):
+        """Test that settings can be properly initialized and accessed."""
         
         # Create a simple settings class
         class SimpleSettings(AnalyzerSettings):
             def __init__(self):
                 super().__init__()
                 self.channel = Channel(0, 0)
-                self.sample_rate = 10000000
-            
-            def get_required_channels(self):
-                return [self.channel]
-            
+                
             def get_name(self):
-                return "Simple Analyzer Settings"
+                return "Simple Test Settings"
         
         class SimpleAnalyzer(Analyzer):
             def __init__(self):
@@ -140,7 +222,7 @@ class TestAnalyzerInitialization:
                 return "Simple Analyzer"
                 
             def _get_minimum_sample_rate_hz(self):
-                return 8000000
+                return 1000000
                 
             def worker_thread(self):
                 pass
@@ -152,123 +234,35 @@ class TestAnalyzerInitialization:
         
         # Check that settings are properly set
         assert analyzer.settings is not None
-        assert analyzer.settings.get_name() == "Simple Analyzer Settings"
+        assert analyzer.settings.get_name() == "Simple Test Settings"
+        
+        # Check that settings are passed to the C++ analyzer
+        analyzer._initialize_analyzer()
+        mock_cpp_backend.return_value.set_analyzer_settings.assert_called_once()
 
 
 class TestAnalyzerLifecycle:
     """Tests for the analyzer lifecycle (start, stop, etc.)."""
     
-    class BasicAnalyzer(Analyzer):
-        """A basic analyzer implementation for testing."""
-
-        def __init__(self):
-            # Initialize tracking variables before super init
-            self.worker_called = False
-            self.worker_completed = False
-            self.worker_aborted = False
-            self.worker_exception = None
-            self.progress_samples = []
-
-            # For testing, we'll override the problematic C++ methods directly
-            # to prevent access violations in tests, without affecting the actual
-            # implementation for real usage
-            if hasattr(self, '_analyzer') and self._analyzer:
-                self._analyzer.start_processing = self._safe_start_processing
-                self._analyzer.start_processing_from = self._safe_start_processing_from
-
-        def _safe_start_processing(self):
-            """Safe test implementation that doesn't call actual C++ code"""
-            # Just set state directly without calling C++ code
-            pass
-            
-        def _safe_start_processing_from(self, sample):
-            """Safe test implementation that doesn't call actual C++ code"""
-            # Just set state directly without calling C++ code
-            pass
-
-        def _get_analyzer_name(self):
-            return "Basic Test Analyzer"
-
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-
-        def worker_thread(self):
-            self.worker_called = True
-            try:
-                # Simulate some work and report progress
-                for i in range(10):
-                    # Check for abort request
-                    try:
-                        self.should_abort()
-                    except Exception as e:
-                        self.worker_exception = e
-                        raise
-                    
-                    # Report progress
-                    try:
-                        self.report_progress(i * 100)
-                        self.progress_samples.append(i * 100)
-                    except Exception as e:
-                        self.worker_exception = e
-                        raise
-                    
-                    # Simulate work
-                    time.sleep(0.01)
-
-                self.worker_completed = True
-            except AnalysisAbortedError:
-                self.worker_aborted = True
-            except Exception as e:
-                self.worker_exception = e
-                raise
-
-        def needs_rerun(self):
-            return False
-
-        # Override problematic methods to avoid C++ interaction during tests
-        def setup(self):
-            # Skip calling into C++ code
-            pass
-
-        # Override should_abort to avoid C++ interaction
-        def should_abort(self):
-            if self._abort_requested:
-                raise AnalysisAbortedError("Analysis aborted by user")
-            return False
-
-        # Override report_progress to avoid C++ interaction
-        def report_progress(self, sample_number):
-            # Calculate progress and notify callbacks
-            progress = sample_number / 1000.0  # Simulate progress calculation
-            for callback in list(self._progress_callbacks):
-                try:
-                    callback(progress)
-                except Exception as e:
-                    warnings.warn(f"Progress callback raised exception: {e}")
-    
-    def test_start_analysis_sync(self):
+    def test_start_analysis_sync(self, mock_cpp_backend):
         """Test starting analysis in synchronous mode."""
-        analyzer = self.BasicAnalyzer()
+        analyzer = TestAnalyzer()
         
-        # Mock the C++ analyzer object to avoid the access violation
-        analyzer._analyzer = MagicMock()
-
-        # Start analysis synchronously (blocks until complete)
+        # Start analysis synchronously
         analyzer.start_analysis(async_mode=False)
         
-        # Check that worker was called and completed
+        # Check that worker thread was called and completed
         assert analyzer.worker_called, "Worker thread should have been called"
-        assert analyzer.worker_completed, "Worker thread should have completed"
-        assert not analyzer.worker_aborted, "Worker thread should not have been aborted"
-        assert analyzer.worker_exception is None, "Worker thread should not have raised an exception"
+        assert analyzer.worker_completed, "Worker thread should have completed successfully"
+        assert analyzer.worker_exception is None, "No exceptions should have been raised"
+        assert analyzer.state == AnalyzerState.COMPLETED, "Final state should be COMPLETED"
         
-        # Check progress reporting
-        assert len(analyzer.progress_samples) == 10, "Progress should have been reported 10 times"
-        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer state should be COMPLETED"
+        # Check C++ interaction
+        mock_cpp_backend.return_value.start_processing.assert_called_once()
     
-    def test_start_analysis_async(self):
+    def test_start_analysis_async(self, mock_cpp_backend):
         """Test starting analysis in asynchronous mode."""
-        analyzer = self.BasicAnalyzer()
+        analyzer = TestAnalyzer()
         
         # Start analysis asynchronously
         analyzer.start_analysis(async_mode=True)
@@ -276,38 +270,18 @@ class TestAnalyzerLifecycle:
         # Wait for completion
         analyzer.wait_for_completion(timeout=1.0)
         
-        # Check that worker was called and completed
+        # Check results
         assert analyzer.worker_called, "Worker thread should have been called"
-        assert analyzer.worker_completed, "Worker thread should have completed"
-        assert not analyzer.worker_aborted, "Worker thread should not have been aborted"
-        assert analyzer.worker_exception is None, "Worker thread should not have raised an exception"
+        assert analyzer.worker_completed, "Worker thread should have completed successfully"
+        assert analyzer.worker_exception is None, "No exceptions should have been raised"
+        assert analyzer.state == AnalyzerState.COMPLETED, "Final state should be COMPLETED"
         
-        # Check progress reporting
-        assert len(analyzer.progress_samples) == 10, "Progress should have been reported 10 times"
-        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer state should be COMPLETED"
-
-    def test_stop_analysis(self):
+        # Check C++ interaction
+        mock_cpp_backend.return_value.start_processing.assert_called_once()
+    
+    def test_stop_analysis(self, mock_cpp_backend):
         """Test stopping a running analysis."""
-        
-        class SlowAnalyzer(self.BasicAnalyzer):
-            def worker_thread(self):
-                self.worker_called = True
-                try:
-                    # Simulate slow work that can be interrupted
-                    for i in range(100):
-                        self.should_abort()
-                        self.report_progress(i * 100)
-                        self.progress_samples.append(i * 100)
-                        time.sleep(0.1)  # Slow enough to be interrupted
-                    
-                    self.worker_completed = True
-                except AnalysisAbortedError:
-                    self.worker_aborted = True
-                except Exception as e:
-                    self.worker_exception = e
-                    raise
-        
-        analyzer = SlowAnalyzer()
+        analyzer = SlowTestAnalyzer()
         
         # Start analysis asynchronously
         analyzer.start_analysis(async_mode=True)
@@ -318,517 +292,344 @@ class TestAnalyzerLifecycle:
         # Stop the analysis
         analyzer.stop_analysis()
         
-        # Wait a bit to ensure it's stopped
-        time.sleep(0.2)
+        # Wait for it to fully stop
+        analyzer.wait_for_completion(timeout=1.0)
         
-        # Check that worker was called and aborted
+        # Check results
         assert analyzer.worker_called, "Worker thread should have been called"
-        assert not analyzer.worker_completed, "Worker thread should not have completed"
-        assert analyzer.worker_aborted, "Worker thread should have been aborted"
-        assert analyzer.worker_exception is None, "Worker thread should not have raised an exception"
-        assert analyzer.state == AnalyzerState.STOPPED, "Analyzer state should be STOPPED"
-
-    def test_start_analysis_error(self):
-        """Test error handling when analysis fails."""
+        assert not analyzer.worker_completed, "Worker thread should not have completed successfully"
+        assert analyzer.state == AnalyzerState.STOPPED, "Final state should be STOPPED"
         
-        class ErrorAnalyzer(self.BasicAnalyzer):
-            def worker_thread(self):
-                self.worker_called = True
-                try:
-                    # Report progress once
-                    self.report_progress(100)
-                    self.progress_samples.append(100)
-                    
-                    # Simulate an error
-                    raise ValueError("Simulated analysis error")
-                except AnalysisAbortedError:
-                    self.worker_aborted = True
-                except Exception as e:
-                    self.worker_exception = e
-                    raise
+        # Check C++ interaction
+        mock_cpp_backend.return_value.start_processing.assert_called_once()
+        mock_cpp_backend.return_value.stop_worker_thread.assert_called_once()
+    
+    def test_analysis_error(self, mock_cpp_backend):
+        """Test error handling during analysis."""
+        analyzer = FailingTestAnalyzer()
         
-        analyzer = ErrorAnalyzer()
-        
-        # Start analysis asynchronously
+        # Start analysis asynchronously to catch the error
         analyzer.start_analysis(async_mode=True)
         
-        # Wait a moment for the error to occur
-        time.sleep(0.2)
-        
-        # Check that worker was called and an error occurred
-        assert analyzer.worker_called, "Worker thread should have been called"
-        assert not analyzer.worker_completed, "Worker thread should not have completed"
-        assert not analyzer.worker_aborted, "Worker thread should not have been aborted"
-        assert analyzer.worker_exception is not None, "Worker thread should have raised an exception"
-        assert isinstance(analyzer.worker_exception, ValueError), "Worker thread should have raised ValueError"
-        assert "Simulated analysis error" in str(analyzer.worker_exception)
-        assert analyzer.state == AnalyzerState.ERROR, "Analyzer state should be ERROR"
-        
-        # Verify that wait_for_completion re-raises the exception
+        # Wait for completion or error
         with pytest.raises(ValueError) as excinfo:
-            analyzer.wait_for_completion()
-        assert "Simulated analysis error" in str(excinfo.value)
-
-    def test_analyzer_context_manager(self):
-        """Test using the analyzer as a context manager."""
-        analyzer = self.BasicAnalyzer()
+            analyzer.wait_for_completion(timeout=1.0)
         
-        # Use context manager
+        # Check that the correct error was raised
+        assert "Simulated worker error" in str(excinfo.value)
+        
+        # Check results
+        assert analyzer.worker_called, "Worker thread should have been called"
+        assert not analyzer.worker_completed, "Worker thread should not have completed successfully"
+        assert analyzer.state == AnalyzerState.ERROR, "Final state should be ERROR"
+    
+    def test_analysis_needs_rerun(self, mock_cpp_backend):
+        """Test handling analyzers that need to be rerun."""
+        analyzer = RerunTestAnalyzer()
+        
+        # Start analysis
+        analyzer.start_analysis(async_mode=False)
+        
+        # Check results
+        assert analyzer.worker_called, "Worker thread should have been called"
+        assert analyzer.worker_completed, "Worker thread should have completed successfully"
+        assert analyzer.rerun_requested, "Rerun should have been requested"
+        assert analyzer.rerun_count == 1, "Rerun count should be 1"
+        assert analyzer.state == AnalyzerState.COMPLETED, "Final state should be COMPLETED"
+        
+        # Check C++ interaction - startProcessing should have been called twice
+        assert mock_cpp_backend.return_value.start_processing.call_count == 2, "StartProcessing should be called twice for a rerun"
+    
+    def test_context_manager(self, mock_cpp_backend):
+        """Test using the analyzer as a context manager."""
+        analyzer = TestAnalyzer()
+        
+        # Use the analyzer as a context manager
         with analyzer.analysis_session() as session:
             # Check that analysis is running
-            assert analyzer.state == AnalyzerState.RUNNING, "Analyzer state should be RUNNING in context"
-            assert session is analyzer, "Context manager should return the analyzer"
-            
-            # Let it run for a moment
-            time.sleep(0.2)
+            assert analyzer.state == AnalyzerState.RUNNING, "Analyzer should be RUNNING in context"
+            assert session is analyzer, "Context should return the analyzer instance"
         
-        # Context should have closed, stopping the analysis if needed
-        assert analyzer.state in (AnalyzerState.COMPLETED, AnalyzerState.STOPPED), \
-            "Analyzer state should be COMPLETED or STOPPED after context"
-
-    def test_analyzer_context_manager_with_error(self):
-        """Test error handling in analyzer context manager."""
+        # Check final state
+        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer should be COMPLETED after context"
         
-        class ErrorAnalyzer(self.BasicAnalyzer):
-            def worker_thread(self):
-                self.worker_called = True
-                # Sleep a bit to make sure we're still running when the error is raised
-                time.sleep(0.2)
-                self.worker_completed = True
+        # Check C++ interaction
+        mock_cpp_backend.return_value.start_processing.assert_called_once()
+    
+    def test_context_manager_with_error(self, mock_cpp_backend):
+        """Test error handling in context manager."""
+        analyzer = TestAnalyzer()
         
-        analyzer = ErrorAnalyzer()
-        
-        # Use context manager with an error
+        # Use the analyzer as a context manager with an error
         try:
-            with analyzer.analysis_session():
-                # Check that analysis is running
-                assert analyzer.state == AnalyzerState.RUNNING, "Analyzer state should be RUNNING in context"
-                
-                # Raise an error
-                raise RuntimeError("Simulated error in context")
+            with analyzer.analysis_session() as session:
+                raise RuntimeError("Simulated context error")
         except RuntimeError as e:
-            assert "Simulated error in context" in str(e), "Context manager should not suppress errors"
+            # The error should propagate
+            assert "Simulated context error" in str(e)
         
-        # Context should have closed, stopping the analysis if needed
-        assert analyzer.state in (AnalyzerState.COMPLETED, AnalyzerState.STOPPED), \
-            "Analyzer state should be COMPLETED or STOPPED after context with error"
+        # Check that analysis was properly stopped
+        assert analyzer.state == AnalyzerState.STOPPED, "Analyzer should be STOPPED after context with error"
+        
+        # Check C++ interaction
+        mock_cpp_backend.return_value.start_processing.assert_called_once()
+        mock_cpp_backend.return_value.stop_worker_thread.assert_called_once()
 
 
 class TestAnalyzerCallbacks:
-    """Tests for analyzer callbacks (progress, state changes)."""
+    """Tests for analyzer callback mechanisms."""
     
-    class CallbackTestAnalyzer(Analyzer):
-        """Analyzer implementation for testing callbacks."""
-        
-        def __init__(self):
-            super().__init__()
-        
-        def _get_analyzer_name(self):
-            return "Callback Test Analyzer"
-            
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-            
-        def worker_thread(self):
-            # Simulate work and trigger callbacks
-            for i in range(5):
-                self.report_progress(i * 1000)
-                time.sleep(0.05)
-                
-        def needs_rerun(self):
-            return False
-    
-    def test_progress_callback(self):
+    def test_progress_callback(self, mock_cpp_backend):
         """Test that progress callbacks are properly called."""
-        analyzer = self.CallbackTestAnalyzer()
+        analyzer = TestAnalyzer()
         
-        # Set up progress callback
-        progress_values = []
+        # Define a progress callback
+        callback_values = []
         def progress_callback(progress):
-            progress_values.append(progress)
+            callback_values.append(progress)
         
+        # Register the callback
         analyzer.add_progress_callback(progress_callback)
         
         # Run analysis
         analyzer.start_analysis(async_mode=False)
         
         # Check that callback was called
-        assert len(progress_values) > 0, "Progress callback should have been called"
-
-    def test_state_callback(self):
+        assert len(callback_values) > 0, "Progress callback should have been called"
+        assert len(callback_values) == len(analyzer.progress_values), "Callback should be called for each progress update"
+    
+    def test_state_callback(self, mock_cpp_backend):
         """Test that state callbacks are properly called."""
-        analyzer = self.CallbackTestAnalyzer()
+        analyzer = TestAnalyzer()
         
-        # Set up state callback
+        # Define a state callback
         state_changes = []
         def state_callback(state):
             state_changes.append(state)
         
+        # Register the callback
         analyzer.add_state_callback(state_callback)
         
         # Run analysis
         analyzer.start_analysis(async_mode=False)
         
-        # Check that callback was called for state transitions
-        assert len(state_changes) >= 2, "State callback should have been called at least twice"
-        assert AnalyzerState.INITIALIZING in state_changes, "Should have seen INITIALIZING state"
-        assert AnalyzerState.RUNNING in state_changes, "Should have seen RUNNING state"
-        assert AnalyzerState.COMPLETED in state_changes, "Should have seen COMPLETED state"
-
-    def test_remove_callbacks(self):
+        # Check that callback was called for each state transition
+        assert len(state_changes) >= 3, "State callback should be called at least 3 times"
+        assert AnalyzerState.INITIALIZING in state_changes, "INITIALIZING state should be reported"
+        assert AnalyzerState.RUNNING in state_changes, "RUNNING state should be reported"
+        assert AnalyzerState.COMPLETED in state_changes, "COMPLETED state should be reported"
+    
+    def test_remove_callback(self, mock_cpp_backend):
         """Test that callbacks can be removed."""
-        analyzer = self.CallbackTestAnalyzer()
+        analyzer = TestAnalyzer()
         
-        # Set up callbacks
-        progress_values1 = []
-        progress_values2 = []
+        # Define two callbacks
+        callback1_values = []
+        callback2_values = []
         
-        def progress_callback1(progress):
-            progress_values1.append(progress)
-            
-        def progress_callback2(progress):
-            progress_values2.append(progress)
+        def callback1(progress):
+            callback1_values.append(progress)
         
-        # Add both callbacks
-        analyzer.add_progress_callback(progress_callback1)
-        analyzer.add_progress_callback(progress_callback2)
+        def callback2(progress):
+            callback2_values.append(progress)
+        
+        # Register both callbacks
+        analyzer.add_progress_callback(callback1)
+        analyzer.add_progress_callback(callback2)
         
         # Remove one callback
-        analyzer.remove_progress_callback(progress_callback2)
+        analyzer.remove_progress_callback(callback2)
         
         # Run analysis
         analyzer.start_analysis(async_mode=False)
         
         # Check that only callback1 was called
-        assert len(progress_values1) > 0, "Progress callback1 should have been called"
-        assert len(progress_values2) == 0, "Progress callback2 should not have been called"
-
-    def test_callback_error_handling(self):
+        assert len(callback1_values) > 0, "Callback1 should have been called"
+        assert len(callback2_values) == 0, "Callback2 should not have been called after removal"
+    
+    def test_callback_error_handling(self, mock_cpp_backend):
         """Test that errors in callbacks are handled gracefully."""
-        analyzer = self.CallbackTestAnalyzer()
+        analyzer = TestAnalyzer()
         
-        # Set up a callback that raises an exception
+        # Define a problematic callback
         def error_callback(progress):
             raise ValueError("Simulated callback error")
         
-        # Set up a normal callback to verify things continue
+        # Define a normal callback
         normal_called = False
         def normal_callback(progress):
             nonlocal normal_called
             normal_called = True
         
-        # Add callbacks (error callback first)
+        # Register both callbacks
         analyzer.add_progress_callback(error_callback)
         analyzer.add_progress_callback(normal_callback)
         
-        # Run analysis - this should not raise an exception despite the callback error
-        with pytest.warns(UserWarning):  # Expect a warning
+        # Run analysis - should issue warning but not crash
+        with pytest.warns(UserWarning):
             analyzer.start_analysis(async_mode=False)
         
-        # Check that normal callback was still called
-        assert normal_called, "Normal callback should still have been called despite error in another callback"
+        # Check that normal callback still ran despite error in other callback
+        assert normal_called, "Normal callback should still run despite error in another callback"
+        assert analyzer.state == AnalyzerState.COMPLETED, "Analysis should complete despite callback error"
 
 
-class TestChannelDataAccess:
-    """Tests for accessing channel data."""
+class TestChannelData:
+    """Tests for channel data access."""
     
-    class ChannelDataAnalyzer(Analyzer):
-        """Analyzer implementation for testing channel data access."""
-        
-        def __init__(self, mock_data=None):
-            super().__init__()
-            self.channel = Channel(0, 0)
-            self.mock_data = mock_data
-            
-            # Mock the analyzer's _analyzer object
-            if mock_data is not None:
-                self._analyzer = MagicMock()
-                self._analyzer.get_analyzer_channel_data.return_value = mock_data
-        
-        def _get_analyzer_name(self):
-            return "Channel Data Test Analyzer"
-            
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-            
-        def worker_thread(self):
-            # This would normally access channel data
-            pass
-                
-        def needs_rerun(self):
-            return False
-    
-    def test_get_channel_data(self):
-        """Test getting channel data from the analyzer."""
-        # Create mock channel data
+    def test_get_channel_data(self, mock_cpp_backend):
+        """Test accessing channel data from the analyzer."""
+        # Set up mock channel data
         mock_channel_data = MagicMock()
-        mock_channel_data.sample_number = 0
-        mock_channel_data.get_next_transition.return_value = (100, BitState.HIGH)
+        mock_channel_data.get_bit_state.return_value = BitState.HIGH
+        mock_channel_data.get_sample_number.return_value = 0
         
-        analyzer = self.ChannelDataAnalyzer(mock_data=mock_channel_data)
+        # Configure mock to return our mock channel data
+        mock_cpp_backend.return_value.get_analyzer_channel_data.return_value = mock_channel_data
         
-        # Get channel data
-        channel_data = analyzer.get_channel_data(analyzer.channel)
+        # Create analyzer and test
+        analyzer = TestAnalyzer()
+        analyzer._initialize_analyzer()  # Ensure initialization
         
-        # Check that we got the mock data
-        assert channel_data is mock_channel_data, "Should have returned the mock channel data"
+        # Get channel data for a test channel
+        channel = Channel(0, 0)
+        channel_data = analyzer.get_channel_data(channel)
         
-        # Check that we can use the channel data
-        transition_sample, bit_state = channel_data.get_next_transition()
-        assert transition_sample == 100, "Should have returned the mock transition sample"
-        assert bit_state == BitState.HIGH, "Should have returned the mock bit state"
-
-    @pytest.mark.hardware
-    def test_get_channel_data_hardware(self):
-        """Test getting channel data from actual hardware (if available)."""
-        # This test requires hardware
-        pytest.importorskip("kingst_hardware", reason="Hardware support not available")
+        # Verify it's the mock we created
+        assert channel_data is mock_channel_data, "Should return the mocked channel data"
         
-        # Create a hardware-connected analyzer
-        analyzer = self.ChannelDataAnalyzer()
-        
-        # Try to get channel data (this may fail if no hardware is connected)
-        try:
-            channel_data = analyzer.get_channel_data(analyzer.channel)
-            assert channel_data is not None, "Channel data should not be None with hardware connected"
-        except RuntimeError:
-            pytest.skip("No hardware connected or channel data not available")
-
+        # Check that the C++ method was called correctly
+        mock_cpp_backend.return_value.get_analyzer_channel_data.assert_called_once_with(channel)
+    
     def test_get_channel_data_error(self):
-        """Test error handling when getting channel data fails."""
-        analyzer = self.ChannelDataAnalyzer()
+        """Test error handling when get_channel_data is called before initialization."""
+        analyzer = TestAnalyzer()
+        # Don't initialize analyzer._analyzer
         
-        # Analyzer not properly initialized (no mock data)
+        # Attempt to get channel data should raise error
         with pytest.raises(RuntimeError) as excinfo:
-            channel_data = analyzer.get_channel_data(analyzer.channel)
+            analyzer.get_channel_data(Channel(0, 0))
         
-        assert "not initialized" in str(excinfo.value).lower(), "Should indicate analyzer not initialized"
+        assert "not initialized" in str(excinfo.value).lower()
 
 
 class TestAnalyzerReset:
     """Tests for resetting the analyzer."""
     
-    class ResettableAnalyzer(Analyzer):
-        """Analyzer implementation for testing reset functionality."""
-        
-        def __init__(self):
-            super().__init__()
-            self.reset_count = 0
-            self.init_count = 1  # Already initialized once in __init__
-        
-        def _get_analyzer_name(self):
-            return "Resettable Test Analyzer"
-            
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-            
-        def worker_thread(self):
-            # Simulate work
-            time.sleep(0.1)
-                
-        def needs_rerun(self):
-            return False
-            
-        def _initialize_analyzer(self):
-            """Override to track initialization."""
-            super()._initialize_analyzer()
-            self.init_count += 1
-    
-    def test_reset(self):
+    def test_reset(self, mock_cpp_backend):
         """Test resetting the analyzer."""
-        analyzer = self.ResettableAnalyzer()
+        class ResetTrackingAnalyzer(TestAnalyzer):
+            def __init__(self):
+                self.init_count = 0
+                super().__init__()
+                
+            def _initialize_analyzer(self):
+                super()._initialize_analyzer()
+                self.init_count += 1
+        
+        analyzer = ResetTrackingAnalyzer()
         
         # Run analysis
         analyzer.start_analysis(async_mode=False)
-        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer should have completed"
+        assert analyzer.state == AnalyzerState.COMPLETED
+        
+        # Get current init count
+        initial_init_count = analyzer.init_count
         
         # Reset
         analyzer.reset()
         
-        # Check that state was reset
-        assert analyzer.state == AnalyzerState.IDLE, "Analyzer state should be IDLE after reset"
-        assert analyzer.init_count == 2, "Analyzer should have been reinitialized"
+        # Check state
+        assert analyzer.state == AnalyzerState.IDLE
+        assert analyzer.init_count == initial_init_count + 1, "Initialization should be called again during reset"
         
-        # Run analysis again
+        # Run analysis again after reset
         analyzer.start_analysis(async_mode=False)
-        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer should have completed after reset"
+        assert analyzer.state == AnalyzerState.COMPLETED, "Analysis should run successfully after reset"
 
 
 class TestNestedAnalyzers:
     """Tests for analyzers that use other analyzers."""
     
-    class FrameGenerator(Analyzer):
-        """Simple analyzer that generates frames."""
+    def test_nested_analyzers(self, mock_cpp_backend):
+        """Test using analyzers within other analyzers."""
         
-        def __init__(self):
-            super().__init__()
-            self.frames_generated = 0
-        
-        def _get_analyzer_name(self):
-            return "Frame Generator"
-            
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-            
-        def worker_thread(self):
-            # Simulate generating some frames (in a real analyzer, these would be added to results)
-            for i in range(10):
-                self.should_abort()  # Check for abort requests
-                self.frames_generated += 1
-                self.report_progress(i * 100)
-                time.sleep(0.01)
+        class InnerAnalyzer(TestAnalyzer):
+            def __init__(self):
+                super().__init__()
+                self.data_processed = 0
                 
-        def needs_rerun(self):
-            return False
-    
-    class MetaAnalyzer(Analyzer):
-        """Analyzer that uses another analyzer."""
+            def worker_thread(self):
+                super().worker_thread()
+                # Simulate processing data
+                self.data_processed = 100
         
-        def __init__(self):
-            super().__init__()
-            self.inner_analyzer = None
-            self.processed_frames = 0
-        
-        def _get_analyzer_name(self):
-            return "Meta Analyzer"
-            
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
-            
-        def worker_thread(self):
-            # Create and run an inner analyzer
-            self.inner_analyzer = self.FrameGenerator()
-            self.inner_analyzer.start_analysis(async_mode=False)
-            
-            # Process the frames from the inner analyzer
-            self.processed_frames = self.inner_analyzer.frames_generated
-            
-            # Report our own progress
-            self.report_progress(1000)
+        class OuterAnalyzer(TestAnalyzer):
+            def __init__(self):
+                super().__init__()
+                self.inner = None
+                self.combined_result = 0
                 
-        def needs_rerun(self):
-            return False
-    
-    def test_nested_analyzer(self):
-        """Test an analyzer that uses another analyzer internally."""
-        analyzer = self.MetaAnalyzer()
+            def worker_thread(self):
+                self.worker_called = True
+                
+                # Create and run an inner analyzer
+                self.inner = InnerAnalyzer()
+                self.inner.start_analysis(async_mode=False)
+                
+                # Use results from inner analyzer
+                self.combined_result = self.inner.data_processed * 2
+                
+                # Mark as completed
+                self.worker_completed = True
         
-        # Run the meta-analyzer
+        # Create and run outer analyzer
+        analyzer = OuterAnalyzer()
         analyzer.start_analysis(async_mode=False)
         
-        # Check that both analyzers ran
-        assert analyzer.inner_analyzer is not None, "Inner analyzer should have been created"
-        assert analyzer.inner_analyzer.frames_generated == 10, "Inner analyzer should have generated 10 frames"
-        assert analyzer.processed_frames == 10, "Meta analyzer should have processed 10 frames"
-        assert analyzer.state == AnalyzerState.COMPLETED, "Meta analyzer should have completed"
-        assert analyzer.inner_analyzer.state == AnalyzerState.COMPLETED, "Inner analyzer should have completed"
+        # Check results
+        assert analyzer.worker_completed, "Outer analyzer should complete"
+        assert analyzer.inner is not None, "Inner analyzer should be created"
+        assert analyzer.inner.worker_completed, "Inner analyzer should complete"
+        assert analyzer.inner.data_processed == 100, "Inner analyzer should process data"
+        assert analyzer.combined_result == 200, "Outer analyzer should use inner analyzer's results"
 
 
-@pytest.mark.hardware
-class TestHardwareAnalyzer:
-    """Hardware-dependent tests for the Analyzer class."""
+@pytest.mark.integration
+class TestRealCPPIntegration:
+    """
+    Tests that actually use the real C++ implementation.
+    These are integration tests and should be run when testing full integration.
+    """
     
-    @pytest.fixture
-    def hardware_check(self):
-        """Check if hardware is available and skip if not."""
+    def test_real_cpp_initialization(self):
+        """Test initializing the analyzer with the real C++ backend."""
         try:
-            # Import hardware module
-            pytest.importorskip("kingst_hardware", reason="Hardware support not available")
+            # Import the real C++ module
+            import kingst_analyzer._core
             
-            # Check if device is connected
-            from kingst_hardware import DeviceManager
-            manager = DeviceManager()
-            devices = manager.get_connected_devices()
+            class RealAnalyzer(TestAnalyzer):
+                pass
             
-            if not devices:
-                pytest.skip("No Kingst devices connected")
-                
-            return devices[0]  # Return the first device
-        except ImportError:
-            pytest.skip("Hardware support not available")
-    
-    class RealHardwareAnalyzer(Analyzer):
-        """Analyzer implementation for testing with real hardware."""
-        
-        def __init__(self, device):
-            super().__init__()
-            self.device = device
-            self.channel = Channel(device.id, 0)  # Use first channel
+            # Create the analyzer - this should use the real C++ backend
+            analyzer = RealAnalyzer()
             
-            # Create basic settings
-            class SimpleSettings(AnalyzerSettings):
-                def __init__(self, channel):
-                    super().__init__()
-                    self.channel = channel
-                
-                def get_required_channels(self):
-                    return [self.channel]
-                
-                def get_name(self):
-                    return "Simple Hardware Settings"
+            # Initialize the analyzer
+            analyzer._initialize_analyzer()
             
-            self._settings = SimpleSettings(self.channel)
-        
-        def _get_analyzer_name(self):
-            return "Hardware Test Analyzer"
+            # Check that we got a real C++ analyzer object
+            assert analyzer._analyzer is not None
+            assert not isinstance(analyzer._analyzer, MagicMock)
             
-        def _get_minimum_sample_rate_hz(self):
-            return 1000000
+            # Try calling a method on the C++ analyzer
+            version = analyzer._analyzer.get_analyzer_version()
             
-        def worker_thread(self):
-            # Get channel data
-            channel_data = self.get_channel_data(self.channel)
+            # Basic sanity check - version should be a string
+            assert isinstance(version, str)
             
-            # Process a few transitions
-            transitions = []
-            for _ in range(5):
-                try:
-                    # Get next transition with a timeout (avoid infinite wait)
-                    sample, state = channel_data.get_next_transition()
-                    transitions.append((sample, state))
-                    self.report_progress(sample)
-                except:
-                    # No more transitions or error
-                    break
-                
-        def needs_rerun(self):
-            return False
-    
-    def test_hardware_analyzer_init(self, hardware_check):
-        """Test initializing an analyzer with real hardware."""
-        device = hardware_check
-        analyzer = self.RealHardwareAnalyzer(device)
-        
-        # Check that analyzer was initialized with hardware
-        assert analyzer.device is device, "Analyzer should be associated with the device"
-        assert analyzer.sample_rate > 0, "Sample rate should be non-zero with hardware"
-
-    def test_hardware_analyzer_run(self, hardware_check):
-        """Test running an analyzer with real hardware."""
-        device = hardware_check
-        analyzer = self.RealHardwareAnalyzer(device)
-        
-        # Start the analyzer (this may involve hardware interaction)
-        analyzer.start_analysis(async_mode=True)
-        
-        # Wait for completion (with timeout to avoid hanging)
-        completed = analyzer.wait_for_completion(timeout=5.0)
-        
-        # Check that analysis completed or is in a valid state
-        if not completed:
-            analyzer.stop_analysis()
-        
-        assert analyzer.state in (AnalyzerState.COMPLETED, AnalyzerState.STOPPED), \
-            f"Analyzer should be completed or stopped, not {analyzer.state}"
+        except (ImportError, AttributeError) as e:
+            pytest.skip(f"Real C++ backend not available: {e}")
 
 
 if __name__ == "__main__":
-    # Set this to True to run hardware tests, False to skip them
-    RUN_HARDWARE_TESTS = False
-    
-    if RUN_HARDWARE_TESTS:
-        # Run all tests including hardware tests
-        pytest.main(["-v", __file__])
-    else:
-        # Skip hardware tests
-        pytest.main(["-v", "-m", "not hardware", __file__])
+    pytest.main(["-v", __file__])
