@@ -829,8 +829,21 @@ class Analyzer(BaseAnalyzer):
             This method is called by the C++ code when the analyzer is run.
             """
             outer = self.outer()
-            if outer:
-                outer.worker_thread()
+            if outer is None:
+                warnings.warn("Outer analyzer object has been garbage collected")
+                return
+            outer.worker_thread()
+        
+        def generate_simulation_data(self, newest_sample_requested, sample_rate, simulation_channels):
+            """
+            Implementation of the C++ GenerateSimulationData method.
+            
+            This method is not meant to be called directly by Python code.
+            Python code should use _generate_simulation_data instead.
+            """
+            # Return sample rate as a simple implementation 
+            # that doesn't try to use the simulation_channels parameter
+            return sample_rate
         
         def get_analyzer_name(self):
             """
@@ -840,9 +853,9 @@ class Analyzer(BaseAnalyzer):
                 str: Analyzer name
             """
             outer = self.outer()
-            if outer:
-                return outer._get_analyzer_name()
-            return "Unknown Analyzer"
+            if outer is None:
+                return "Unknown Analyzer (Outer object deleted)"
+            return outer._get_analyzer_name()
         
         def get_minimum_sample_rate_hz(self):
             """
@@ -852,9 +865,9 @@ class Analyzer(BaseAnalyzer):
                 int: Minimum sample rate in Hz
             """
             outer = self.outer()
-            if outer:
-                return outer._get_minimum_sample_rate_hz()
-            return 1000000  # Default to 1 MHz
+            if outer is None:
+                return 1000000  # Default to 1 MHz if outer is gone
+            return outer._get_minimum_sample_rate_hz()
         
         def needs_rerun(self):
             """
@@ -864,9 +877,24 @@ class Analyzer(BaseAnalyzer):
                 bool: True if the analyzer needs to be rerun
             """
             outer = self.outer()
-            if outer:
-                return outer.needs_rerun()
-            return False
+            if outer is None:
+                return False
+            return outer.needs_rerun()
+        
+        def setup_results(self):
+            """
+            Delegate to the outer class's setup method.
+            
+            This allows Python code to override the default setup_results method.
+            """
+            outer = self.outer()
+            if outer is None:
+                # Call the parent implementation if outer is gone
+                super().setup_results()
+                return
+                
+            # Call the outer's setup method
+            outer.setup()
     
     def __init__(self):
         """Initialize a new Analyzer instance."""
