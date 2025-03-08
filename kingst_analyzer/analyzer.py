@@ -395,12 +395,11 @@ class BaseAnalyzer(abc.ABC):
     def setup(self) -> None:
         """
         Set up the analyzer before running.
-        
-        This is called automatically before starting the analysis.
-        It initializes the results object and performs any other needed setup.
         """
         if self._analyzer:
+            # Call setup_results on the C++ analyzer directly
             self._analyzer.setup_results()
+
     
     def should_abort(self) -> bool:
         """
@@ -811,21 +810,21 @@ class Analyzer(BaseAnalyzer):
     
     class PyAnalyzerImpl(_ka.Analyzer):
         """Inner class that implements the C++ Analyzer interface."""
-        
+
         def __init__(self, outer):
             """
             Initialize a PyAnalyzerImpl instance.
-            
+
             Args:
                 outer: The outer Analyzer instance
             """
             super().__init__()
             self.outer = weakref.ref(outer)  # Use weakref to avoid circular references
-        
+
         def worker_thread(self):
             """
             Delegate to the outer class's worker_thread method.
-            
+
             This method is called by the C++ code when the analyzer is run.
             """
             outer = self.outer()
@@ -833,22 +832,22 @@ class Analyzer(BaseAnalyzer):
                 warnings.warn("Outer analyzer object has been garbage collected")
                 return
             outer.worker_thread()
-        
+
         def generate_simulation_data(self, newest_sample_requested, sample_rate, simulation_channels):
             """
             Implementation of the C++ GenerateSimulationData method.
-            
+
             This method is not meant to be called directly by Python code.
             Python code should use _generate_simulation_data instead.
             """
             # Return sample rate as a simple implementation 
             # that doesn't try to use the simulation_channels parameter
             return sample_rate
-        
+
         def get_analyzer_name(self):
             """
             Delegate to the outer class's _get_analyzer_name method.
-            
+
             Returns:
                 str: Analyzer name
             """
@@ -856,11 +855,11 @@ class Analyzer(BaseAnalyzer):
             if outer is None:
                 return "Unknown Analyzer (Outer object deleted)"
             return outer._get_analyzer_name()
-        
+
         def get_minimum_sample_rate_hz(self):
             """
             Delegate to the outer class's _get_minimum_sample_rate_hz method.
-            
+
             Returns:
                 int: Minimum sample rate in Hz
             """
@@ -868,11 +867,11 @@ class Analyzer(BaseAnalyzer):
             if outer is None:
                 return 1000000  # Default to 1 MHz if outer is gone
             return outer._get_minimum_sample_rate_hz()
-        
+
         def needs_rerun(self):
             """
             Delegate to the outer class's needs_rerun method.
-            
+
             Returns:
                 bool: True if the analyzer needs to be rerun
             """
@@ -880,26 +879,37 @@ class Analyzer(BaseAnalyzer):
             if outer is None:
                 return False
             return outer.needs_rerun()
-        
+
         def setup_results(self):
-            """
-            Delegate to the outer class's setup method.
-            
-            This allows Python code to override the default setup_results method.
-            """
-            outer = self.outer()
-            if outer is None:
-                # Call the parent implementation if outer is gone
-                super().setup_results()
-                return
-                
-            # Call the outer's setup method
-            outer.setup()
+           """
+           Implementation of the C++ SetupResults method.
+           """
+           outer = self.outer()
+           if outer is None:
+               # Call the parent implementation if outer is gone
+               super().setup_results()
+               return
+    
+           # Instead of calling outer.setup() which would cause recursion,
+           # call the C++ parent method directly
+           super().setup_results()
+    
+           # We don't need to call any other methods on outer here
+           # since that would likely lead to recursion
     
     def __init__(self):
         """Initialize a new Analyzer instance."""
         super().__init__()
-        self._initialize_analyzer()
+        self._analyzer = None  # Will hold the C++ analyzer instance
+        self._settings = None  # Will hold the settings object
+        self._results = None   # Will hold the analyzer results
+        self._state = AnalyzerState.IDLE
+        self._analysis_thread = None
+        self._analysis_exception = None
+        self._abort_requested = False
+        self._progress_callbacks = set()
+        self._state_callbacks = set()
+        self._in_setup_results = False  # 
     
     def _initialize_analyzer(self) -> None:
         """
