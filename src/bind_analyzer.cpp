@@ -252,17 +252,53 @@ void init_analyzer(py::module_ &m) {
     )pbdoc");
     
     // Process control methods
-    analyzer.def("start_processing", static_cast<void (Analyzer::*)()>(&Analyzer::StartProcessing), R"pbdoc(
+    analyzer.def("start_processing", [](py::object self) {
+        try {
+            // Get the C++ object from the Python object
+            auto& analyzer = self.cast<Analyzer&>();
+            
+            // Verify proper initialization before proceeding
+            if (!analyzer.GetAnalyzerSettings()) {
+                throw std::runtime_error("Analyzer settings not initialized");
+            }
+            
+            // Attempt the operation
+            analyzer.StartProcessing();
+        } catch (const std::exception& e) {
+            // Convert C++ exceptions to Python exceptions
+            PyErr_SetString(PyExc_RuntimeError, e.what());
+            throw py::error_already_set();
+        } catch (...) {
+            // Handle unknown exceptions
+            PyErr_SetString(PyExc_RuntimeError, "Unknown error in start_processing");
+            throw py::error_already_set();
+        }
+    }, R"pbdoc(
         Start processing from the beginning.
         
         This method starts the analyzer worker thread to begin processing data.
-    )pbdoc");
-    
-    analyzer.def("start_processing_from", static_cast<void (Analyzer::*)(U64)>(&Analyzer::StartProcessing), R"pbdoc(
-        Start processing from a specific sample.
         
+        Raises:
+            RuntimeError: If processing cannot be started
+    )pbdoc");
+
+    analyzer.def("start_processing_from", [](Analyzer &self, U64 starting_sample) {
+        try {
+            // Add any necessary validation or preparation
+            self.StartProcessing(starting_sample);
+        } catch (const std::exception &e) {
+            throw py::error_already_set();
+        } catch (...) {
+            throw py::error_already_set();
+        }
+    }, R"pbdoc(
+        Start processing from a specific sample.
+
         Args:
             starting_sample: Sample number to start processing from
+
+        Raises:
+            RuntimeError: If processing cannot be started
     )pbdoc", py::arg("starting_sample"));
     
     analyzer.def("stop_worker_thread", &Analyzer::StopWorkerThread, R"pbdoc(
