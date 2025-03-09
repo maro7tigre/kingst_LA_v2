@@ -29,6 +29,7 @@ from kingst_analyzer.types import BitState, Channel, DisplayBase
 from kingst_analyzer.settings import AnalyzerSettings
 from kingst_analyzer.simulation import SimulationManager, SimulationChannelDescriptor
 
+from tests.mock_settings import MockAnalyzerSettings
 
 # Test-specific analyzer implementations
 class TestAnalyzer(Analyzer):
@@ -169,25 +170,26 @@ def simulation_setup():
         return None
 
 
-class SpiAnalyzerSettings(AnalyzerSettings):
+class SpiAnalyzerSettings(MockAnalyzerSettings):
     """Settings for the SPI Analyzer."""
     
     def __init__(self):
-        super().__init__()
+        super().__init__("SPI Analyzer Settings")
         
         # Default channels
         self.clock_channel = Channel(0, 0)  # Device 0, Channel 0
         self.mosi_channel = Channel(0, 1)   # Device 0, Channel 1
         self.miso_channel = Channel(0, 2)   # Device 0, Channel 2
         self.enable_channel = Channel(0, 3) # Device 0, Channel 3
+        
+        # Add channels to the settings
+        self.add_channel(self.clock_channel, "Clock", True)
+        self.add_channel(self.mosi_channel, "MOSI", True)
+        self.add_channel(self.miso_channel, "MISO", True)
+        self.add_channel(self.enable_channel, "Enable", True)
     
     def get_name(self):
         return "SPI Analyzer Settings"
-    
-    # Add required method from abstract class
-    def _create_cpp_settings(self):
-        # This is a stub implementation for testing
-        pass
 
 
 class SpiAnalyzer(Analyzer):
@@ -196,11 +198,15 @@ class SpiAnalyzer(Analyzer):
     def __init__(self):
         super().__init__()
         
+        # Initialize in test mode
+        self._test_mode = True
+        
         # Create settings
         self._settings = SpiAnalyzerSettings()
         
         # Initialize for testing
         self._initialize_analyzer()
+        self.setup_test_mode()
         
         # Results tracking
         self.frames_found = 0
@@ -249,28 +255,33 @@ class SpiAnalyzer(Analyzer):
         return False
 
 
-class SimpleSettings(AnalyzerSettings):
+class SimpleSettings(MockAnalyzerSettings):
     """Simple settings class for testing."""
     
     def __init__(self):
-        super().__init__()
+        super().__init__("Simple Test Settings")
         self.channel = Channel(0, 0)
+        self.add_channel(self.channel, "Test Channel", True)
         
     def get_name(self):
         return "Simple Test Settings"
-        
-    def _create_cpp_settings(self):
-        # This is a stub implementation for testing
-        pass
 
 
 class SimpleAnalyzer(Analyzer):
     """Simple analyzer implementation for basic tests."""
     
     def __init__(self):
+        """Initialize a simple test analyzer."""
         super().__init__()
+        # Initialize in test mode
+        self._test_mode = True
+        # Initialize settings first (before analyzer initialization)
         self._settings = SimpleSettings()
-        
+        self._initialized = False
+        # Initialize analyzer with test mode
+        self._initialize_analyzer()
+        self.setup_test_mode()
+    
     def _get_analyzer_name(self):
         return "Simple Analyzer"
         
@@ -282,6 +293,12 @@ class SimpleAnalyzer(Analyzer):
         
     def needs_rerun(self):
         return False
+    
+    def _initialize_analyzer(self):
+        """Override to initialize with test mode automatically."""
+        if not self._initialized:
+            super()._initialize_analyzer()
+            self._initialized = True
 
 
 class TestAnalyzerInitialization:
@@ -323,12 +340,13 @@ class TestAnalyzerInitialization:
     def test_analyzer_with_settings(self):
         """Test that settings can be properly initialized and accessed."""
         analyzer = SimpleAnalyzer()
-        analyzer._initialize_analyzer()
-        analyzer.setup_test_mode()
+        
+        # No need to explicitly initialize - it's done in constructor
+        assert analyzer._initialized, "Analyzer should be initialized by constructor"
         
         # Check that settings are properly set
         assert analyzer.settings is not None
-        assert analyzer.settings.get_name() == "Simple Test Settings"
+        assert analyzer.settings.name == "Simple Test Settings"
 
 
 class TestAnalyzerLifecycle:
@@ -438,8 +456,8 @@ class TestAnalyzerLifecycle:
             assert analyzer.state == AnalyzerState.RUNNING, "Analyzer should be RUNNING in context"
             assert session is analyzer, "Context should return the analyzer instance"
         
-        # Check final state
-        assert analyzer.state == AnalyzerState.COMPLETED, "Analyzer should be COMPLETED after context"
+        # Check final state - context manager exits by stopping analysis
+        assert analyzer.state == AnalyzerState.STOPPED, "Analyzer should be STOPPED after context"
     
     def test_context_manager_with_error(self):
         """Test error handling in context manager."""
@@ -554,7 +572,8 @@ class TestChannelData:
         """Test accessing channel data from the analyzer."""
         # Create an SPI analyzer that will access channel data
         analyzer = SpiAnalyzer()
-        analyzer.setup_test_mode()
+        
+        # No need to call setup_test_mode - it's done in constructor
         
         # Update analyzer settings to use our simulation channels
         analyzer._settings.clock_channel = Channel(0, 0)  # Clock channel
