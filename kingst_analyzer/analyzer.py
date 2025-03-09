@@ -569,15 +569,33 @@ class BaseAnalyzer(abc.ABC):
         Reset the analyzer to its initial state.
         
         This method clears all results and resets the analyzer state.
+        Note: After calling reset(), you should call setup_test_mode() 
+        again if you were using test mode.
         """
-        if self._analyzer:
-            # Re-initialize the analyzer
-            self._initialize_analyzer()
-            
-        self._set_state(AnalyzerState.IDLE)
+        # Store hardware connection state
+        was_hardware_connected = self._hardware_connected
+        device_handle = self._device_handle
+        
+        # Clear instance variables
         self._abort_requested = False
         self._analysis_exception = None
         self._analysis_thread = None
+        self._hardware_connected = False
+        self._device_handle = None
+        
+        if self._analyzer:
+            # Re-initialize the analyzer
+            self._analyzer = None
+            self._initialize_analyzer()
+            
+            # If hardware was connected, try to reconnect
+            if was_hardware_connected and device_handle:
+                try:
+                    self.connect_to_hardware(device_handle)
+                except Exception as e:
+                    warnings.warn(f"Could not reconnect to hardware after reset: {e}")
+            
+        self._set_state(AnalyzerState.IDLE)
     
     # -------------------------------------------------------------------------
     # Context management and simulation methods

@@ -605,6 +605,12 @@ class TestAnalyzerReset:
             def _initialize_analyzer(self):
                 super()._initialize_analyzer()
                 self.init_count += 1
+                
+            # Override setup_test_mode to count calls
+            def setup_test_mode(self):
+                super().setup_test_mode()
+                # Track that we've called this
+                self.test_mode_setup = True
         
         analyzer = ResetTrackingAnalyzer()
         analyzer._initialize_analyzer()
@@ -619,6 +625,9 @@ class TestAnalyzerReset:
         
         # Reset
         analyzer.reset()
+        
+        # After reset, we need to set up test mode again
+        analyzer.setup_test_mode()
         
         # Check state
         assert analyzer.state == AnalyzerState.IDLE
