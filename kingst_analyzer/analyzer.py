@@ -894,7 +894,7 @@ class Analyzer(BaseAnalyzer):
         self._abort_requested = False
         self._progress_callbacks = set()
         self._state_callbacks = set()
-        self._in_setup_results = False  # 
+        self._in_setup_results = False  
     
     def _initialize_analyzer(self) -> None:
         """
