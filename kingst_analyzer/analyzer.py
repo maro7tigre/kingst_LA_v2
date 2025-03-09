@@ -330,6 +330,7 @@ class BaseAnalyzer(abc.ABC):
             if not self._analyzer:
                 raise AnalyzerInitError("Analyzer not initialized")
 
+            # Setup the analyzer before running
             self.setup()
 
             # Safely call start_processing with exception handling
@@ -403,11 +404,11 @@ class BaseAnalyzer(abc.ABC):
     def setup(self) -> None:
         """
         Set up the analyzer before running.
+        
+        This method is called before the worker thread and can be overridden
+        to perform custom setup operations.
         """
-        if self._analyzer:
-            # Call setup_results on the C++ analyzer directly
-            self._analyzer.setup_results()
-
+        pass
     
     def should_abort(self) -> bool:
         """
@@ -557,8 +558,7 @@ class BaseAnalyzer(abc.ABC):
         This method clears all results and resets the analyzer state.
         """
         if self._analyzer:
-            # There's no direct "reset" method in the C++ API, so we'll
-            # re-initialize the analyzer
+            # Re-initialize the analyzer
             self._initialize_analyzer()
             
         self._set_state(AnalyzerState.IDLE)
@@ -622,49 +622,6 @@ class BaseAnalyzer(abc.ABC):
         self._generate_simulation_data(sample_rate)
     
     # -------------------------------------------------------------------------
-    # Batch analysis methods
-    # -------------------------------------------------------------------------
-    
-    def analyze_file(self, file_path: str, **options) -> "_ka.AnalyzerResults":
-        """
-        Analyze data from a file.
-        
-        This is a convenience method for quickly analyzing data from a file.
-        
-        Args:
-            file_path: Path to the data file
-            **options: Additional options for analysis
-            
-        Returns:
-            AnalyzerResults: Results of the analysis
-            
-        Raises:
-            NotImplementedError: This method is not yet implemented
-            
-        Note: 
-            This functionality depends on the Kingst SDK's file loading capabilities.
-        """
-        raise NotImplementedError("File analysis is not yet implemented")
-    
-    def analyze_batch(self, file_paths: List[str], **options) -> List["_ka.AnalyzerResults"]:
-        """
-        Batch analyze multiple files.
-        
-        This is a convenience method for analyzing multiple files in sequence.
-        
-        Args:
-            file_paths: List of paths to data files
-            **options: Additional options for analysis
-            
-        Returns:
-            List[AnalyzerResults]: Results for each file
-            
-        Raises:
-            NotImplementedError: This method is not yet implemented
-        """
-        raise NotImplementedError("Batch analysis is not yet implemented")
-    
-    # -------------------------------------------------------------------------
     # Internal implementation methods
     # -------------------------------------------------------------------------
     
@@ -678,8 +635,16 @@ class BaseAnalyzer(abc.ABC):
         Raises:
             AnalyzerInitError: If analyzer initialization fails
         """
-        # This will be implemented in derived classes
-        pass
+        try:
+            # Create the Python implementation of the C++ Analyzer
+            self._analyzer = self.PyAnalyzerImpl(self)
+
+            # Set up settings if available
+            if self._settings:
+                self._analyzer.set_analyzer_settings(self._settings)
+        except Exception as e:
+            self._analyzer = None
+            raise AnalyzerInitError(f"Failed to initialize analyzer: {e}")
     
     def _set_state(self, state: AnalyzerState) -> None:
         """
@@ -771,6 +736,77 @@ class BaseAnalyzer(abc.ABC):
             "Override _generate_simulation_data in your analyzer class."
         )
 
+    # -------------------------------------------------------------------------
+    # Inner class for C++ binding
+    # -------------------------------------------------------------------------
+
+    class PyAnalyzerImpl(_ka.Analyzer):
+        """Inner class that implements the C++ Analyzer interface."""
+    
+        def __init__(self, outer):
+            """
+            Initialize a PyAnalyzerImpl instance.
+    
+            Args:
+                outer: The outer Analyzer instance
+            """
+            # Important: Call the C++ constructor first
+            super().__init__()
+            # Store a strong reference to avoid premature garbage collection
+            self.outer = outer
+    
+        def worker_thread(self):
+            """
+            Implementation of the C++ WorkerThread method.
+            This is called by the C++ code when the analyzer is run.
+            """
+            try:
+                self.outer.worker_thread()
+            except Exception as e:
+                # Let the exception propagate so the C++ side can handle it properly
+                raise
+            
+        def generate_simulation_data(self, newest_sample_requested, sample_rate, simulation_channels):
+            """
+            Implementation of the C++ GenerateSimulationData method.
+            
+            This is a simplified implementation that delegates to the Python implementation
+            without trying to deal with the simulation_channels parameter directly.
+            """
+            # This is a minimal implementation to satisfy the virtual method
+            # A proper implementation would need to handle simulation_channels correctly
+            try:
+                # Call the Python implementation if it exists
+                if hasattr(self.outer, "_generate_simulation_data"):
+                    return self.outer._generate_simulation_data(newest_sample_requested, sample_rate)
+                return sample_rate
+            except Exception as e:
+                warnings.warn(f"Error in generate_simulation_data: {str(e)}")
+                return sample_rate
+    
+        def get_minimum_sample_rate_hz(self):
+            """Implementation of the C++ GetMinimumSampleRateHz method."""
+            return self.outer._get_minimum_sample_rate_hz()
+    
+        def get_analyzer_name(self):
+            """Implementation of the C++ GetAnalyzerName method."""
+            return self.outer._get_analyzer_name()
+    
+        def needs_rerun(self):
+            """Implementation of the C++ NeedsRerun method."""
+            return self.outer.needs_rerun()
+    
+        def setup_results(self):
+            """
+            Implementation of the C++ SetupResults method.
+            
+            FIXED: This was causing recursion - we now call outer.setup()
+            directly without calling the base class implementation first.
+            """
+            # Call the outer Python setup method
+            # FIX: Don't call super().setup_results() to avoid recursion
+            self.outer.setup()
+
 
 class Analyzer(BaseAnalyzer):
     """
@@ -815,124 +851,7 @@ class Analyzer(BaseAnalyzer):
                 return False
         ```
     """
-    
-    class PyAnalyzerImpl(_ka.Analyzer):
-        """Inner class that implements the C++ Analyzer interface."""
-    
-        def __init__(self, outer):
-            """
-            Initialize a PyAnalyzerImpl instance.
-    
-            Args:
-                outer: The outer Analyzer instance
-            """
-            # Important: Call the C++ constructor first
-            super().__init__()
-            # Store a strong reference to avoid premature garbage collection
-            self.outer = outer
-    
-        def worker_thread(self):
-            """
-            Implementation of the C++ WorkerThread method.
-            This is called by the C++ code when the analyzer is run.
-            """
-            try:
-                self.outer.worker_thread()
-            except Exception as e:
-                # Log the error but don't convert it - let it propagate
-                # so the C++ side can handle it properly
-                warnings.warn(f"Error in worker_thread: {str(e)}")
-                raise
-            
-        def generate_simulation_data(self, newest_sample_requested, sample_rate, simulation_channels):
-            """
-            Implementation of the C++ GenerateSimulationData method.
-            
-            This is a simplified implementation that delegates to the Python implementation
-            without trying to deal with the simulation_channels parameter directly.
-            """
-            # This is a minimal implementation to satisfy the virtual method
-            # A proper implementation would need to handle simulation_channels correctly
-            try:
-                # Call the Python implementation if it exists
-                if hasattr(self.outer, "_generate_simulation_data"):
-                    return self.outer._generate_simulation_data(newest_sample_requested, sample_rate)
-                return sample_rate
-            except Exception as e:
-                warnings.warn(f"Error in generate_simulation_data: {str(e)}")
-                return sample_rate
-    
-        def get_minimum_sample_rate_hz(self):
-            """Implementation of the C++ GetMinimumSampleRateHz method."""
-            return self.outer._get_minimum_sample_rate_hz()
-    
-        def get_analyzer_name(self):
-            """Implementation of the C++ GetAnalyzerName method."""
-            return self.outer._get_analyzer_name()
-    
-        def needs_rerun(self):
-            """Implementation of the C++ NeedsRerun method."""
-            return self.outer.needs_rerun()
-    
-        def setup_results(self):
-            """Implementation of the C++ SetupResults method."""
-            # First call the base class implementation
-            super().setup_results()
-            
-            # Then call our own setup method
-            self.outer.setup()
-    
-    def __init__(self):
-        """Initialize a new Analyzer instance."""
-        super().__init__()
-        self._analyzer = None  # Will hold the C++ analyzer instance
-        self._settings = None  # Will hold the settings object
-        self._results = None   # Will hold the analyzer results
-        self._state = AnalyzerState.IDLE
-        self._analysis_thread = None
-        self._analysis_exception = None
-        self._abort_requested = False
-        self._progress_callbacks = set()
-        self._state_callbacks = set()
-        self._in_setup_results = False  
-    
-    def _initialize_analyzer(self) -> None:
-        """
-        Initialize the C++ analyzer instance.
 
-        This creates a Python implementation of the C++ Analyzer class that
-        delegates virtual method calls to this Python instance.
-
-        Raises:
-            AnalyzerInitError: If analyzer initialization fails
-        """
-        try:
-            # Create the Python implementation of the C++ Analyzer
-            self._analyzer = self.PyAnalyzerImpl(self)
-
-            # Set up settings if available
-            if self._settings:
-                self._analyzer.set_analyzer_settings(self._settings)
-        except Exception as e:
-            self._analyzer = None
-            raise AnalyzerInitError(f"Failed to initialize analyzer: {e}")
-
-    def _setup_test_mode(self):
-        """
-        Set up the analyzer in test mode.
-
-        This creates a specially configured analyzer that doesn't rely on the actual C++
-        implementation when running tests, preventing access violations.
-        """
-        # Override problematic methods with test-safe implementations
-        self._analyzer.start_processing = lambda: None
-        self._analyzer.start_processing_from = lambda sample: None
-        self._analyzer.stop_worker_thread = lambda: None
-        self._analyzer.check_if_thread_should_exit = lambda: None
-        self._analyzer.get_analyzer_progress = lambda: 0.0
-
-        # If needed, we can still keep the original C++ implementations accessible
-        self._analyzer._real_start_processing = self._analyzer.start_processing
 
 class ProtocolAnalyzer(Analyzer):
     """
