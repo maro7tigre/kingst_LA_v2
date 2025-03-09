@@ -32,7 +32,7 @@ from kingst_analyzer.simulation import SimulationManager, SimulationChannelDescr
 from tests.mock_settings import MockAnalyzerSettings
 
 # Test-specific analyzer implementations
-class TestAnalyzer(Analyzer):
+class MockAnalyzer(Analyzer):
     """A test analyzer implementation with tracking variables."""
     
     def __init__(self):
@@ -88,7 +88,7 @@ class TestAnalyzer(Analyzer):
         self.progress_values.append(sample_number)
 
 
-class FailingTestAnalyzer(TestAnalyzer):
+class FailingMockAnalyzer(MockAnalyzer):
     """A test analyzer that fails in worker_thread."""
     
     def worker_thread(self):
@@ -97,7 +97,7 @@ class FailingTestAnalyzer(TestAnalyzer):
         raise ValueError("Simulated worker error")
 
 
-class SlowTestAnalyzer(TestAnalyzer):
+class SlowMockAnalyzer(MockAnalyzer):
     """A test analyzer with a slow worker thread."""
     
     def worker_thread(self):
@@ -120,7 +120,7 @@ class SlowTestAnalyzer(TestAnalyzer):
             raise
 
 
-class RerunTestAnalyzer(TestAnalyzer):
+class RerunMockAnalyzer(MockAnalyzer):
     """A test analyzer that requests a rerun once."""
     
     def __init__(self):
@@ -354,7 +354,7 @@ class TestAnalyzerLifecycle:
     
     def test_start_analysis_sync(self):
         """Test starting analysis in synchronous mode."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -369,7 +369,7 @@ class TestAnalyzerLifecycle:
     
     def test_start_analysis_async(self):
         """Test starting analysis in asynchronous mode."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -387,7 +387,7 @@ class TestAnalyzerLifecycle:
     
     def test_stop_analysis(self):
         """Test stopping a running analysis."""
-        analyzer = SlowTestAnalyzer()
+        analyzer = SlowMockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -409,7 +409,7 @@ class TestAnalyzerLifecycle:
     
     def test_analysis_error(self):
         """Test error handling during analysis."""
-        analyzer = FailingTestAnalyzer()
+        analyzer = FailingMockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -430,7 +430,7 @@ class TestAnalyzerLifecycle:
     
     def test_analysis_needs_rerun(self):
         """Test handling analyzers that need to be rerun."""
-        analyzer = RerunTestAnalyzer()
+        analyzer = RerunMockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -446,7 +446,7 @@ class TestAnalyzerLifecycle:
     
     def test_context_manager(self):
         """Test using the analyzer as a context manager."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -461,7 +461,7 @@ class TestAnalyzerLifecycle:
     
     def test_context_manager_with_error(self):
         """Test error handling in context manager."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -478,7 +478,7 @@ class TestAnalyzerLifecycle:
     
     def test_hardware_required_error(self):
         """Test that requiring hardware raises appropriate error."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         # Don't connect to hardware
         
@@ -492,7 +492,7 @@ class TestAnalyzerCallbacks:
     
     def test_progress_callback(self):
         """Test that progress callbacks are properly called."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -513,7 +513,7 @@ class TestAnalyzerCallbacks:
     
     def test_state_callback(self):
         """Test that state callbacks are properly called."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -536,7 +536,7 @@ class TestAnalyzerCallbacks:
     
     def test_remove_callback(self):
         """Test that callbacks can be removed."""
-        analyzer = TestAnalyzer()
+        analyzer = MockAnalyzer()
         analyzer._initialize_analyzer()
         analyzer.setup_test_mode()
         
@@ -616,7 +616,7 @@ class TestAnalyzerReset:
     
     def test_reset(self):
         """Test resetting the analyzer."""
-        class ResetTrackingAnalyzer(TestAnalyzer):
+        class ResetTrackingAnalyzer(MockAnalyzer):
             def __init__(self):
                 self.init_count = 0
                 super().__init__()

@@ -45,6 +45,7 @@ KINGST_LA_V2
 ├── tests/  
 │ ├── __init__.py  
 │ ├── conftest.py                  # Shared fixtures and test configuration  
+│ ├── mock_settings.py             # Mock settings implementations for testing  
 │ ├── test_types.py                # Tests for types.py (BitState, Channel, etc.)  
 │ ├── test_analyzer.py             # Tests for analyzer.py (Analyzer class)  
 │ ├── test_settings.py             # Tests for settings.py (AnalyzerSettings classes)  
